@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.3", "3.4", "4.0"]
+    defaults:
+      run:
+        working-directory: breadkit-render
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: breadkit/breadkit
+          path: breadkit
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          path: breadkit-render
+          persist-credentials: false
+      - name: Install rasterizer
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin libvips-dev fonts-noto-cjk
+        working-directory: .
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+          working-directory: breadkit-render
+      - run: bundle exec rake
+      - name: Render core examples
+        run: |
+          mkdir -p /tmp/breadkit-render-examples
+          for file in ../breadkit/examples/*.bk.rb; do
+            name="${file##*/}"
+            bundle exec bkrender "$file" -o "/tmp/breadkit-render-examples/${name%.bk.rb}.png" --scale 2
+          done

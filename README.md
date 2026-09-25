@@ -2,6 +2,8 @@
 
 `bkrender` turns a Breadkit DSL or resolved IR JSON file into a standalone SVG diagram. Breadkit DSL input is executable Ruby; only render files you trust. IR JSON is the data-only alternative.
 
+Install `breadkit-render` directly; RubyGems installs its compatible `breadkit` core dependency. Shared circuit examples are in the [breadkit repository](https://github.com/breadkit/breadkit/tree/main/examples).
+
 ```sh
 bkrender circuit.bk.rb -o circuit.svg --show-nets --legend
 bkrender circuit.bk.rb -o circuit.png --scale 3 --theme light
