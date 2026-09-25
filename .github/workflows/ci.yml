@@ -19,12 +19,12 @@ jobs:
       run:
         working-directory: breadkit-render
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: breadkit/breadkit
           path: breadkit
           persist-credentials: false
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: breadkit-render
           persist-credentials: false
