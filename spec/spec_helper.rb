@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
+require "simplecov"
+SimpleCov.start do
+  skip "/spec/"
+  coverage :line, minimum: 80
+end
+
 require "breadkit/render"
+require_relative "support/snapshot"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

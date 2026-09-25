@@ -7,7 +7,7 @@ module Breadkit
       PALETTE = %w[#d62728 #1f77b4 #2ca02c #9467bd #ff7f0e #17becf].freeze
 
       def render(circuit, crop: "auto", theme: "light", show_nets: false, legend: false, color_by: "wire", annotations: [])
-        @circuit, @theme, @show_nets, @color_by, @annotations = circuit, theme, show_nets, color_by, annotations
+        @circuit, @theme, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme, show_nets, legend, color_by, annotations
         @used_holes = circuit.nets.flat_map(&:holes).uniq
         @view_box = view_box(crop)
         left, top, width, height = @view_box
@@ -230,12 +230,31 @@ module Breadkit
       end
 
       def legend_svg
-        out = [text(0, py(-4), @circuit.title || "Breadkit circuit", "font-size" => 6, "font-weight" => "bold")]
+        return "" unless @legend_enabled || !@annotations.empty?
+
+        x = @view_box[0] + 5
+        y = @view_box[1] + @view_box[3] - legend_height + 7
+        out = [text(x, y, @circuit.title || "Breadkit circuit", "font-size" => 6, "font-weight" => "bold")]
+        y += 9
+        if @legend_enabled
+          @circuit.nets.each do |net|
+            out << line(x, y - 1, x + 8, y - 1, legend_color(net), 2.4)
+            out << text(x + 12, y, net.name, "font-size" => 4)
+            y += 7
+          end
+        end
         @annotations.each_with_index do |item, index|
           message = read(item, "message") || read(item, "rule")
-          out << text(0, py(-4) + 9 + index * 7, "#{index + 1}. #{message}", "font-size" => 3.5)
+          out << text(x, y + index * 7, "#{index + 1}. #{message}", "font-size" => 3.5)
         end
         out.join
+      end
+
+      def legend_color(net)
+        return "#222222" if @theme == "print"
+
+        wire = @circuit.wires.find { |candidate| net.members.include?(candidate.id) }
+        wire ? (wire.color || wire_color(wire)) : PALETTE[@circuit.nets.index(net).to_i % PALETTE.length]
       end
 
       def annotations_svg
@@ -273,18 +292,25 @@ module Breadkit
       end
 
       def view_box(mode)
+        extra_height = legend_height
         offboard = @circuit.components.values.any? { |component| component.part.placement == "offboard" }
         if mode == "none" || (@used_holes.empty? && !offboard)
           return [offboard ? -PITCH * 11 : -PITCH, -PITCH * 3.5,
-                  (@circuit.board.width + (offboard ? 13 : 2)) * PITCH, (@circuit.board.height + 6) * PITCH]
+                  (@circuit.board.width + (offboard ? 13 : 2)) * PITCH, (@circuit.board.height + 6) * PITCH + extra_height]
         end
         points = @used_holes.filter_map { |id| hole = @circuit.board.hole(id); [hole.x, hole.y] if hole }
         points.concat(@circuit.wires.flat_map { |wire| [endpoint_point(wire.from), endpoint_point(wire.to)] }.compact)
         points.concat(@circuit.components.values.select { |component| component.part.placement == "offboard" }
                               .flat_map { |component| offboard_bounds(component) })
         xs, ys = points.map { |x, _y| px(x) }, points.map { |_x, y| py(y) }
-        return [-PITCH, -PITCH * 3.5, (@circuit.board.width + 2) * PITCH, (@circuit.board.height + 6) * PITCH] if xs.empty?
-        [xs.min - 25, ys.min - 30, [xs.max - xs.min + 50, 100].max, [ys.max - ys.min + 65, 100].max]
+        return [-PITCH, -PITCH * 3.5, (@circuit.board.width + 2) * PITCH, (@circuit.board.height + 6) * PITCH + extra_height] if xs.empty?
+        [xs.min - 25, ys.min - 30, [xs.max - xs.min + 50, 100].max, [ys.max - ys.min + 65, 100].max + extra_height]
+      end
+
+      def legend_height
+        return 0 unless @legend_enabled || !@annotations.empty?
+
+        16 + (@legend_enabled ? @circuit.nets.length * 7 : 0) + @annotations.length * 7
       end
 
       def endpoint_point(endpoint)

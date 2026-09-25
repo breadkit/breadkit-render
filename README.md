@@ -18,11 +18,11 @@ bkrender circuit.bk.rb --format svg > circuit.svg
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
 | `--color-by MODE` | `wire` | Use declared wire colors or deterministic net colors. |
 | `--show-nets` | off | Add net labels to the diagram. |
-| `--legend` | off | Add a title and annotation legend. |
+| `--legend` | off | Add the title, net names, and representative wire colors. |
 | `--crop MODE` | `auto` | `auto` crops to circuit content; `none` shows the full board. |
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |
 | `--backend NAME` | `auto` | Raster backend: `rsvg`, `vips`, or `magick`. |
-| `--background COLOR` | white | JPEG background color. |
+| `--background COLOR` | white | JPEG background: `white`, `black`, `#RGB`, or `#RRGGBB`. |
 | `--quality N` | `90` | JPEG quality. |
 | `--force` | off | Draw resolved elements even when the input has layout errors. |
 
