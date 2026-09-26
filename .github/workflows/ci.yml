@@ -19,10 +19,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, ruby: "3.3" }
-          - { os: ubuntu-latest, ruby: "3.4" }
-          - { os: ubuntu-latest, ruby: "4.0" }
-          - { os: macos-latest, ruby: "4.0" }
+          - os: ubuntu-latest
+            ruby: "3.3"
+          - os: ubuntu-latest
+            ruby: "3.4"
+          - os: ubuntu-latest
+            ruby: "4.0"
+          - os: macos-latest
+            ruby: "4.0"
     defaults:
       run:
         working-directory: breadkit-render
