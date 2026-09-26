@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101719">
+    <meta name="description" content="Generate layered SVG, PNG, and JPEG breadboard diagrams from Breadkit circuit files.">
+    <title>breadkit-render | Turn wiring into a clear diagram</title>
+    <link rel="canonical" href="https://breadkit.github.io/breadkit-render/">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./assets/site.css">
+  </head>
+  <body class="min-h-dvh bg-ink font-sans text-paper antialiased">
+    <a class="sr-only rounded-sm bg-copper px-4 py-3 font-semibold text-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:outline-2 focus:outline-offset-4 focus:outline-paper" href="#main">Skip to content</a>
+    <header class="border-b border-line">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10">
+        <a class="flex items-center gap-3 rounded-sm text-xl font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="./" aria-label="breadkit-render home"><img class="size-8" src="./favicon.svg" alt="" width="32" height="32"><span>breadkit-render</span></a>
+        <nav aria-label="Main navigation" class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
+          <a class="rounded-sm hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://breadkit.github.io/breadkit/">Breadkit</a>
+          <a class="rounded-sm hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://breadkit.github.io/breadkit/guide/">Guide</a>
+          <a class="rounded-sm hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://breadkit.github.io/breadkit/guide/dsl/">Reference</a>
+          <a class="rounded-sm hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://breadkit.github.io/breadkit-lint/">Lint</a>
+          <a class="rounded-sm hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://github.com/breadkit/breadkit-render">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-10 lg:py-20">
+        <div class="max-w-xl">
+          <p class="mb-5 text-sm font-medium text-copper">The Breadkit diagram generator</p>
+          <h1 class="text-balance text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">Turn wiring into a clear diagram.</h1>
+          <p class="mt-6 max-w-lg text-pretty text-lg leading-8 text-muted">Generate a breadboard diagram from components and wires written in Ruby. Switch layers in SVG, or save the result as PNG or JPEG.</p>
+          <div class="mt-8 flex flex-wrap gap-x-6 gap-y-4">
+            <a class="rounded-sm bg-copper px-5 py-3 font-semibold text-ink hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="./images/sensor-demo.svg">Open example SVG</a>
+            <a class="rounded-sm py-3 font-medium text-paper underline decoration-line underline-offset-4 hover:decoration-copper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://github.com/breadkit/breadkit/blob/main/examples/05_sensor_demo.bk.rb">View circuit source</a>
+          </div>
+          <div class="mt-10 rounded-lg border border-line bg-board p-5">
+            <p class="mb-3 text-sm text-muted">Install and render</p>
+            <pre class="overflow-x-auto font-mono text-sm leading-7"><code>gem install breadkit-render
+bkrender circuit.bk.rb -o circuit.svg
+bkrender circuit.bk.rb -o circuit.png --scale 2</code></pre>
+          </div>
+        </div>
+        <figure class="m-0 overflow-hidden rounded-xl border border-line bg-board">
+          <div class="flex items-center justify-center p-4 sm:p-6"><img class="h-auto max-h-160 w-auto max-w-full" src="./images/sensor-demo.png" alt="Generated diagram with an RP2040, OLED, SHT31 modules, switches, and IR sensor modules" width="848" height="1031"></div>
+          <figcaption class="border-t border-line px-5 py-4 text-pretty text-sm leading-6 text-muted">Sensor demo. The SVG separates power, I2C, switches, and IR wiring into layers.</figcaption>
+        </figure>
+      </section>
+
+      <section id="formats" class="border-t border-line bg-board/60">
+        <div class="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
+          <h2 class="text-balance text-3xl font-semibold">One circuit, several formats</h2>
+          <div class="mt-8 grid border-y border-line md:grid-cols-3">
+            <div class="py-6 md:pr-8"><h3 class="text-balance text-xl font-semibold">SVG</h3><p class="mt-3 text-pretty leading-7 text-muted">Stays sharp when enlarged. Circuits with <code class="font-mono text-paper">layer:</code> can switch between views.</p></div>
+            <div class="border-t border-line py-6 md:border-l md:border-t-0 md:px-8"><h3 class="text-balance text-xl font-semibold">PNG</h3><p class="mt-3 text-pretty leading-7 text-muted">Useful for READMEs and sharing. Set the resolution with <code class="font-mono text-paper">--scale</code>.</p></div>
+            <div class="border-t border-line py-6 md:border-l md:border-t-0 md:pl-8"><h3 class="text-balance text-xl font-semibold">JPEG</h3><p class="mt-3 text-pretty leading-7 text-muted">Save a raster image with a chosen background color and quality.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="options" class="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-2 lg:px-10">
+        <div>
+          <h2 class="text-balance text-3xl font-semibold">Choose how to show the circuit</h2>
+          <p class="mt-4 max-w-xl text-pretty leading-7 text-muted">Set orientation, theme, power rail pattern, and net labels from the CLI. Component and pin positions come from the circuit file.</p>
+          <div class="mt-6 overflow-x-auto rounded-lg border border-line bg-board p-5">
+            <pre class="font-mono text-sm leading-7"><code>bkrender circuit.bk.rb -o circuit.svg \
+  --orientation portrait \
+  --theme dark \
+  --rail-pattern '+--+'</code></pre>
+          </div>
+          <p class="mt-4 text-pretty text-sm leading-6 text-muted">Rail patterns: <code class="font-mono text-paper">+--+</code>, <code class="font-mono text-paper">+-+-</code>, <code class="font-mono text-paper">-+-+</code>, or <code class="font-mono text-paper">-++-</code>.</p>
+        </div>
+        <div class="rounded-lg border border-line bg-board p-6">
+          <h3 class="text-balance text-xl font-semibold">Review findings on the diagram</h3>
+          <p class="mt-4 text-pretty leading-7 text-muted">Overlay bklint JSON output to see flagged holes and wires on the diagram.</p>
+          <pre class="mt-5 overflow-x-auto font-mono text-sm leading-7"><code>bklint circuit.bk.rb --format json --out lint.json
+bkrender circuit.bk.rb --annotations lint.json \
+  -o review.svg</code></pre>
+          <a class="mt-6 inline-block rounded-sm text-paper underline decoration-copper underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://breadkit.github.io/breadkit-lint/">Explore breadkit-lint</a>
+        </div>
+      </section>
+
+      <section class="border-t border-line">
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-10 sm:px-8 lg:px-10">
+          <p class="max-w-2xl text-pretty text-sm leading-6 text-muted">The 5 V emitter layer is an alternative connection. Remove the emitter's 3.3 V wire before using it. Keep the receiver at 3.3 V.</p>
+          <a class="rounded-sm text-paper underline decoration-line underline-offset-4 hover:decoration-copper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://breadkit.github.io/breadkit/guide/">Learn to write a circuit</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-line"><div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-7 text-sm text-muted sm:px-8 lg:px-10"><p>breadkit-render is published independently from breadkit.</p><a class="rounded-sm text-paper underline decoration-line underline-offset-4 hover:decoration-copper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://github.com/breadkit/breadkit-render">GitHub repository</a></div></footer>
+  </body>
+</html>

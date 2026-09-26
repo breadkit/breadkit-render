@@ -1,0 +1,38 @@
+module Breadkit
+  module Render
+    VERSION: String
+
+    class Error < StandardError
+    end
+
+    class SvgRenderer
+      def render: (
+        Breadkit::Circuit circuit,
+        ?crop: String,
+        ?theme: String,
+        ?orientation: String,
+        ?show_nets: bool,
+        ?legend: bool,
+        ?color_by: String,
+        ?annotations: Array[Hash[String, untyped]],
+        ?rail_pattern: String?,
+        ?interactive_layers: bool
+      ) -> String
+    end
+
+    class Rasterizer
+      def rasterize: (
+        String svg,
+        format: String,
+        ?scale: Float,
+        ?background: String,
+        ?quality: Integer,
+        ?backend: String
+      ) -> String
+    end
+
+    class CLI
+      def run: (Array[String] argv) -> Integer
+    end
+  end
+end
