@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -24,13 +28,13 @@ jobs:
         working-directory: breadkit-render
     steps:
       - name: Checkout breadkit examples
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: breadkit/breadkit
-          ref: 7bccfcdefa8635f69ba32193dcab425582ea1cf8
+          ref: main
           path: breadkit
           persist-credentials: false
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: breadkit-render
           persist-credentials: false
@@ -42,7 +46,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install librsvg vips
         working-directory: .
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1.324.0
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
@@ -55,3 +59,33 @@ jobs:
             name="${file##*/}"
             bundle exec bkrender "$file" -o "/tmp/breadkit-render-examples/${name%.bk.rb}.png" --scale 2
           done
+
+  package:
+    name: Strict gem build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1.324.0
+        with:
+          ruby-version: "4.0"
+          bundler: default
+      - run: gem build --strict breadkit-render.gemspec
+
+  signatures:
+    name: RBS signatures
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1.324.0
+        with:
+          ruby-version: "4.0"
+          bundler: default
+      - run: gem install rbs --no-document # zizmor: ignore[adhoc-packages]
+      - run: bundle install
+      - run: rbs -I sig -r breadkit validate

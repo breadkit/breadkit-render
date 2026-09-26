@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "#{spec.homepage}/tree/main"
   spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
-  spec.metadata["documentation_uri"] = "#{spec.homepage}/tree/main"
+  spec.metadata["documentation_uri"] = "https://breadkit.github.io/breadkit-render/"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   gemspec = File.basename(__FILE__)
