@@ -126,6 +126,8 @@ module Breadkit
             break
           end
         end
+      rescue Interrupt
+        0
       end
 
       def watch_snapshot(root, paths, output)

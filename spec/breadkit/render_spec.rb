@@ -632,7 +632,7 @@ RSpec.describe Breadkit::Render::CLI do
         end
       end
 
-      expect { cli.run([input, "--watch", "-o", output]) }.to raise_error(Interrupt)
+      expect(cli.run([input, "--watch", "-o", output])).to eq(0)
       expect(ticks).to eq(2)
       expect(File.read(output)).to include('data-ref="R2"')
     end
