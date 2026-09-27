@@ -27,6 +27,8 @@ jobs:
             ruby: "4.0"
           - os: macos-latest
             ruby: "4.0"
+          - os: windows-2025
+            ruby: "4.0"
     defaults:
       run:
         working-directory: breadkit-render
@@ -57,6 +59,7 @@ jobs:
           working-directory: breadkit-render
       - run: bundle exec rake
       - name: Render core examples
+        if: runner.os != 'Windows'
         run: |
           mkdir -p /tmp/breadkit-render-examples
           for file in ../breadkit/examples/*.bk.rb; do
