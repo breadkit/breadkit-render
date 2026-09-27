@@ -7,11 +7,12 @@ module Breadkit
   module Render
     class CLI
       def run(argv)
-        options = { scale: 2.0, theme: "light", orientation: "portrait", color_by: "wire", crop: "auto", backend: "auto", quality: 90 }
+        options = { scale: 2.0, theme: "light", orientation: "portrait", color_by: "wire", crop: "auto", backend: "auto", quality: 90, view: "breadboard" }
         parser = OptionParser.new do |opts|
           opts.banner = "Usage: bkrender [options] INPUT"
           opts.on("-o", "--output PATH") { |value| options[:output] = value }
           opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg webp pdf]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
+          opts.on("--view NAME", %w[breadboard schematic]) { |value| options[:view] = value }
           opts.on("--scale N", Float) { |value| options[:scale] = value }
           opts.on("--theme NAME", %w[light dark print]) { |value| options[:theme] = value }
           opts.on("--orientation NAME", %w[portrait landscape]) { |value| options[:orientation] = value }
@@ -43,6 +44,7 @@ module Breadkit
         raise ArgumentError, "--diff requires OLD and NEW inputs" if options[:diff] && !second_input
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
+        validate_schematic_options(options, format) if options[:view] == "schematic"
         if options[:print_template]
           raise ArgumentError, "--print-template requires PDF output" unless format == "pdf"
           options.merge!(theme: "print", crop: "none", scale: 1.0, static: true)
@@ -59,13 +61,17 @@ module Breadkit
         return 1 if !errors.empty? && !options[:force]
         state = circuit.states("all").find { |candidate| candidate.name == options[:state] } if options[:state]
         raise ArgumentError, "unknown circuit state: #{options[:state]}" if options[:state] && !state
-        render_options = { crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
-                           show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
-                           annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
-                           interactive_layers: %w[svg html].include?(format) && !options[:static] && !options[:layer],
-                           state: state, active_layer: options[:layer], focus: options[:focus],
-                           highlight_net: options[:highlight_net] }
-        svg = SvgRenderer.new.render(circuit, **render_options)
+        render_options = if options[:view] == "schematic"
+          { theme: options[:theme], state: state }
+        else
+          { crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
+            show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
+            annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
+            interactive_layers: %w[svg html].include?(format) && !options[:static] && !options[:layer],
+            state: state, active_layer: options[:layer], focus: options[:focus],
+            highlight_net: options[:highlight_net] }
+        end
+        svg = (options[:view] == "schematic" ? SchematicRenderer.new : SvgRenderer.new).render(circuit, **render_options)
         svg = print_dimensions(svg) if options[:print_template]
         output = case format
         when "svg" then svg
@@ -86,6 +92,18 @@ module Breadkit
       end
 
       private
+
+      def validate_schematic_options(options, format)
+        raise ArgumentError, "HTML is unavailable in schematic view" if format == "html"
+
+        unavailable = { diff: options[:diff], print_template: options[:print_template], rail_pattern: options[:rail_pattern],
+                        annotations: options[:annotations], layer: options[:layer], focus: options[:focus],
+                        highlight_net: options[:highlight_net], show_nets: options[:show_nets], legend: options[:legend],
+                        static: options[:static], crop: options[:crop] != "auto", orientation: options[:orientation] != "portrait",
+                        color_by: options[:color_by] != "wire" }
+        option = unavailable.find { |_name, used| used }&.first
+        raise ArgumentError, "--#{option.to_s.tr('_', '-')} is unavailable in schematic view" if option
+      end
 
       def print_dimensions(svg)
         svg.sub(/(<svg\b[^>]*?\bwidth=")([\d.]+)(" height=")([\d.]+)(")/) do
