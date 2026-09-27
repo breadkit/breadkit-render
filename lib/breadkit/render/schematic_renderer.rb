@@ -60,7 +60,7 @@ module Breadkit
         svg << %(<?xml version="1.0" encoding="UTF-8"?>)
         svg << %(<svg xmlns="http://www.w3.org/2000/svg" width="#{width}" height="#{height}" viewBox="0 0 #{width} #{height}" role="img" aria-label="Circuit schematic" data-view="schematic" data-theme="#{theme}"#{state&.name ? %( data-state="#{xml(state.name)}") : ""}>)
         svg << %(<title>Circuit schematic</title>)
-        svg << %(<desc>Each component is drawn once. Colored wires and matching net labels connect its terminals to resolved nets. Board hole locations are omitted.</desc>)
+        svg << %(<desc>#{xml((["Each component is drawn once. Colored wires and matching net labels connect terminals. Board hole locations are omitted."] + nets.map { |net| "#{net.name}: #{net.members.join(', ')}" }).join(' '))}</desc>)
         svg << %(<rect width="#{width}" height="#{height}" fill="#{colors[:background]}"/>)
         svg << %(<g font-family="Arial, Helvetica, sans-serif" fill="#{colors[:text]}">)
         svg << %(<text x="48" y="40" fill="#{colors[:muted]}" font-size="11" font-weight="700" letter-spacing="2.4">BREADKIT / SCHEMATIC</text>)

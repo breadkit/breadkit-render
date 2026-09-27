@@ -7,7 +7,8 @@ module Breadkit
   module Render
     class CLI
       def run(argv)
-        options = { scale: 2.0, theme: "light", orientation: "portrait", color_by: "wire", crop: "auto", backend: "auto", quality: 90, view: "breadboard" }
+        options = { scale: 2.0, theme: "light", orientation: "portrait", color_by: "wire", crop: "auto", backend: "auto", quality: 90,
+                    view: "breadboard", label_density: "full" }
         parser = OptionParser.new do |opts|
           opts.banner = "Usage: bkrender [options] INPUT"
           opts.on("-o", "--output PATH") { |value| options[:output] = value }
@@ -18,6 +19,7 @@ module Breadkit
           opts.on("--orientation NAME", %w[portrait landscape]) { |value| options[:orientation] = value }
           opts.on("--rail-pattern PATTERN", SvgRenderer::RAIL_PATTERNS) { |value| options[:rail_pattern] = value }
           opts.on("--color-by MODE", %w[wire net]) { |value| options[:color_by] = value }
+          opts.on("--label-density MODE", SvgRenderer::LABEL_DENSITIES) { |value| options[:label_density] = value }
           opts.on("--show-nets") { options[:show_nets] = true }
           opts.on("--legend") { options[:legend] = true }
           opts.on("--crop MODE", %w[auto none]) { |value| options[:crop] = value }
@@ -74,7 +76,7 @@ module Breadkit
             annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
             interactive_layers: !step && %w[svg html].include?(format) && !options[:static] && !options[:layer],
             state: state, active_layer: options[:layer], focus: options[:focus],
-            highlight_net: options[:highlight_net] }
+            highlight_net: options[:highlight_net], label_density: options[:label_density] }
         end
         renderer = { "breadboard" => SvgRenderer, "netlist" => NetlistRenderer,
                      "schematic" => SchematicRenderer }.fetch(options[:view])
@@ -174,7 +176,7 @@ module Breadkit
                         annotations: options[:annotations], layer: options[:layer], focus: options[:focus],
                         highlight_net: options[:highlight_net], show_nets: options[:show_nets], legend: options[:legend],
                         static: options[:static], crop: options[:crop] != "auto", orientation: options[:orientation] != "portrait",
-                        color_by: options[:color_by] != "wire" }
+                        color_by: options[:color_by] != "wire", label_density: options[:label_density] != "full" }
         option = unavailable.find { |_name, used| used }&.first
         raise ArgumentError, "--#{option.to_s.tr('_', '-')} is unavailable in #{view} view" if option
       end
@@ -210,7 +212,8 @@ module Breadkit
         added = unmatched_wires(after, before).to_h { |id| [id, "added"] }
         render_options = { crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
                            show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
-                           rail_pattern: options[:rail_pattern], interactive_layers: !options[:static] }
+                           rail_pattern: options[:rail_pattern], interactive_layers: !options[:static],
+                           label_density: options[:label_density] }
         old_svg = SvgRenderer.new.render(before, **render_options, diff_wires: removed)
         new_svg = SvgRenderer.new.render(after, **render_options, diff_wires: added)
         html = diff_viewer(old_svg, new_svg, theme: options[:theme])

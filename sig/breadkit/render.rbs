@@ -18,7 +18,11 @@ module Breadkit
         ?rail_pattern: String?,
         ?interactive_layers: bool,
         ?state: Breadkit::State?,
-        ?active_layer: String?
+        ?active_layer: String?,
+        ?focus: String?,
+        ?highlight_net: String?,
+        ?label_density: String,
+        ?diff_wires: Hash[String, String]
       ) -> String
     end
 

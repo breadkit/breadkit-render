@@ -29,6 +29,8 @@ RSpec.describe Breadkit::Render::SchematicRenderer do
     load_source(source) do |circuit, _path, _directory|
       document = REXML::Document.new(described_class.new.render(circuit, theme: "dark"))
       expect(document.root.attributes["data-view"]).to eq("schematic")
+      vcc = circuit.nets.find { |net| net.name == "VCC" }
+      expect(document.root.elements["desc"].text).to include("VCC: #{vcc.members.join(', ')}")
       expect(REXML::XPath.match(document, "//g[@id='devices']/g[@data-ref]").map { |item| item.attributes["data-ref"] })
         .to eq(%w[USB R1 D1])
       expect(REXML::XPath.match(document, "//g[@id='nets']/path[@data-net]").map { |item| item.attributes["data-net"] })

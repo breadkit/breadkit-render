@@ -13,6 +13,8 @@ RSpec.describe Breadkit::Render::NetlistRenderer do
     document = REXML::Document.new(described_class.new.render(circuit))
     expect(document.root.attributes["data-view"]).to eq("netlist")
     expect(document.root.elements["title"].text).to eq("Circuit netlist")
+    vcc = circuit.nets.find { |net| net.name == "VCC" }
+    expect(document.root.elements["desc"].text).to include("VCC: #{vcc.members.join(', ')}")
 
     terminals = circuit.components.values.flat_map { |component| component.pins.values.map { |pin| "#{component.ref}.#{pin.name}" } }
     terminals.concat(circuit.supplies.flat_map { |supply| ["#{supply.name}.+", "#{supply.name}.-"] })

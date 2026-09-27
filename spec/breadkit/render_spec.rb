@@ -14,6 +14,18 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(described_class.new.render(circuit, legend: true, show_nets: true)).to eq(svg)
   end
 
+  it "describes resolved nets and gives every board hole a hover title" do
+    document = REXML::Document.new(described_class.new.render(circuit))
+    description = document.root.elements["desc"].text
+    vcc = circuit.nets.find { |net| net.name == "VCC" }
+    expect(description).to include("VCC: #{vcc.members.join(', ')}")
+    hole_nodes = REXML::XPath.match(document, "//g[@id='holes']/use[@data-hole]")
+    expect(hole_nodes.length).to eq(circuit.board.holes.length)
+    expect(hole_nodes.all? { |hole| hole.elements["title"]&.text&.start_with?(hole.attributes["data-hole"]) }).to be(true)
+    empty_hole = hole_nodes.find { |hole| hole.attributes["data-net"].nil? }
+    expect(empty_hole.elements["title"].text).to eq(empty_hole.attributes["data-hole"])
+  end
+
   it "keeps component labels above jumper wires in dense circuits" do
     %w[02_555_blinker 04_led_bar].each do |name|
       path = File.expand_path("../../../breadkit/examples/#{name}.bk.rb", __dir__)
@@ -27,6 +39,39 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     path = File.expand_path("../../../breadkit/examples/02_555_blinker.bk.rb", __dir__)
     document = REXML::Document.new(described_class.new.render(Breadkit.load(path)))
     expect(REXML::XPath.first(document, "//g[@id='component-labels']/g[@data-ref='U1']/text").text).to eq("NE555")
+  end
+
+  it "switches between formatted values, compact references, and no overlay labels" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :mini; resistor :R1, "330", pins: %w[a1 a3]; capacitor :C1, "100n", pins: %w[a5 a7]', "labels.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    labels = ->(mode) do
+      document = REXML::Document.new(described_class.new.render(diagram, label_density: mode))
+      REXML::XPath.match(document, "//g[@id='component-labels']/g/text").map(&:text)
+    end
+    expect(labels.call("full")).to include("R1 330Ω", "C1 100nF")
+    expect(labels.call("compact")).to include("R1", "C1")
+    expect(labels.call("compact")).not_to include("R1 330Ω", "C1 100nF")
+    expect(labels.call("none")).to be_empty
+  end
+
+  it "moves a value label clear of a one-hole jumper" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :universal; resistor :R1, "330", pins: %w[a1 a2]; wire "R1.1", "b1", color: :red', "short_wire.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    document = REXML::Document.new(described_class.new.render(diagram))
+    wire = REXML::XPath.first(document, "//g[@id='wires']//path[@data-ref='W1']")
+    x1, y1, x2, y2 = wire.attributes["d"].scan(/[\d.]+/).map(&:to_f)
+    group = REXML::XPath.first(document, "//g[@id='component-labels']/g[@data-ref='R1']")
+    box, text = group.elements["rect"], group.elements["text"]
+    center, baseline = text.attributes["x"].to_f, text.attributes["y"].to_f
+    box_x = center - (baseline - box.attributes["y"].to_f)
+    box_right = center + box.attributes["y"].to_f + box.attributes["height"].to_f - baseline
+    box_top = baseline - box.attributes["width"].to_f / 2
+    box_bottom = baseline + box.attributes["width"].to_f / 2
+    overlaps = [x1, x2].min <= box_right && [x1, x2].max >= box_x &&
+               [y1, y2].min <= box_bottom && [y1, y2].max >= box_top
+    expect(overlaps).to be(false)
   end
 
   it "draws model-specific seven-segment and RGB LED bodies" do
@@ -524,6 +569,22 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 end
 
 RSpec.describe Breadkit::Render::CLI do
+  it "passes label density to breadboard output and rejects it in netlist view" do
+    Dir.mktmpdir do |directory|
+      input = File.join(directory, "labels.bk.rb")
+      output = File.join(directory, "labels.svg")
+      File.write(input, 'board :mini; resistor :R1, "330", pins: %w[a1 a3]')
+      expect(described_class.new.run([input, "--label-density", "compact", "-o", output])).to eq(0)
+      compact = REXML::Document.new(File.read(output))
+      expect(REXML::XPath.first(compact, "//g[@id='component-labels']/g[@data-ref='R1']/text").text).to eq("R1")
+      expect(described_class.new.run([input, "--label-density", "none", "-o", output])).to eq(0)
+      hidden = REXML::Document.new(File.read(output))
+      expect(REXML::XPath.match(hidden, "//g[@id='component-labels']/g")).to be_empty
+      expect { expect(described_class.new.run([input, "--view", "netlist", "--label-density", "none", "-o", output])).to eq(2) }
+        .to output(/--label-density is unavailable in netlist view/).to_stderr
+    end
+  end
+
   it "prints warnings in every view without --force" do
     builder = Breadkit::DSL::Builder.new
     builder.instance_eval('board :mini; resistor :R1, "330", pins: %w[a1 a3]', "warning.bk.rb", 1)

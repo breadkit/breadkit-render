@@ -49,15 +49,29 @@ emitter connection. The 5 V layer is a visual alternative: remove the emitter's
 
 ## Quick start
 
-Install the gem with Ruby 3.3 or newer. The compatible Breadkit core gem is
-installed automatically.
+The published 0.1.0 release works with Ruby 3.3 or newer:
 
 ```sh
-gem install breadkit-render
+gem install breadkit-render -v 0.1.0
 bkrender circuit.bk.rb -o circuit.svg
 ```
 
-Choose a theme, add net labels, or export a raster image:
+This README documents the newer, unreleased `main` branch. It currently depends
+on Breadkit core 0.2.0, which is also unreleased. To use these features now,
+check out both repositories as siblings:
+
+```sh
+mkdir breadkit-dev && cd breadkit-dev
+git clone https://github.com/breadkit/breadkit.git breadkit
+git clone https://github.com/breadkit/breadkit-render.git breadkit-render
+cd breadkit-render
+bundle install
+bundle exec ruby exe/bkrender ../breadkit/examples/01_led_button.bk.rb -o circuit.svg
+```
+
+The commands below use `bkrender` for readability. In a source checkout, run
+`bundle exec ruby exe/bkrender` in its place. Choose a theme, add net labels,
+or export a raster image:
 
 ```sh
 bkrender circuit.bk.rb -o circuit.svg --theme dark --show-nets --legend
@@ -68,11 +82,17 @@ bkrender circuit.bk.rb --print-template -o board-template.pdf
 bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender circuit.bk.rb --view netlist --theme dark -o netlist.svg
 bkrender circuit.bk.rb --view schematic --theme dark -o schematic.svg
+bkrender circuit.bk.rb --label-density compact -o compact.svg
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
 
 PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
+Breadboard labels show formatted values such as `330Ω` and `100nF` by default.
+Use `--label-density compact` for references only, or `none` to hide foreground
+component labels. `compact` is recommended for dense diagrams. Each SVG
+includes a text netlist in `<desc>` and a `<title>`
+for every board hole, including unused holes.
 
 ## Netlist view
 
@@ -202,7 +222,7 @@ The demo was generated with:
 
 ```sh
 bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
-  -o docs/images/sensor-demo.png --crop auto --rail-pattern '+--+' --scale 2
+  -o docs/images/sensor-demo.png --crop auto --rail-pattern '+--+' --label-density compact --scale 2
 ```
 
 ## Options
@@ -217,6 +237,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |
 | `--rail-pattern PATTERN` | board layout | Set rail polarity with `+--+`, `+-+-`, `-+-+`, or `-++-`. |
 | `--color-by MODE` | `wire` | Use declared wire colors or deterministic net colors. |
+| `--label-density MODE` | `full` | Breadboard foreground labels: `full` (reference and value), `compact` (reference only), or `none` (hidden). |
 | `--show-nets` / `--legend` | off | Add net labels or a circuit legend. |
 | `--crop MODE` | `auto` | Crop to circuit content or show the full board with `none`. |
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |

@@ -7,6 +7,7 @@ module Breadkit
     class SvgRenderer
       PITCH = 10.0
       RAIL_PATTERNS = %w[+--+ +-+- -+-+ -++-].freeze
+      LABEL_DENSITIES = %w[full compact none].freeze
       OFFBOARD_PIN_PITCH = 1.0
       PALETTE = %w[#d62728 #1f77b4 #2ca02c #9467bd #ff7f0e #17becf].freeze
       MODULE_PIN_COLORS = {
@@ -56,11 +57,13 @@ module Breadkit
                      module_border: "#666666", muted: "#777777", accent: "#333333" }
       }.freeze
 
-      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, diff_wires: {})
+      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, label_density: "full", diff_wires: {})
         @multi_board = circuit.respond_to?(:multi_board?) && circuit.multi_board?
         raise ArgumentError, "--rail-pattern is unavailable for multi-board circuits" if @multi_board && rail_pattern
+        raise ArgumentError, "unknown label density: #{label_density}" unless LABEL_DENSITIES.include?(label_density)
 
         @circuit, @theme, @orientation, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme.to_s, orientation.to_s, show_nets, legend, color_by, annotations
+        @label_density = label_density
         @state, @active_layer = state, active_layer&.to_s
         @diff_wires = diff_wires
         @nets = circuit.nets(state)
@@ -294,12 +297,8 @@ module Breadkit
           class_name += " data-connected=\"true\"" if connected
           attrs = "href=\"##{dot}\" x=\"#{coord(px(display.x))}\" y=\"#{coord(py(display.y))}\" data-hole=\"#{escape(hole.id)}\"#{class_name}"
           attrs += " data-net=\"#{escape(@nets_by_hole[hole.id].name)}\"" if @nets_by_hole[hole.id]
-          if used || connected
-            title = [hole.id, @nets_by_hole[hole.id]&.name].compact.join(" / ")
-            "<use #{attrs}><title>#{escape(title)}</title></use>"
-          else
-            "<use #{attrs}/>"
-          end
+          title = [hole.id, @nets_by_hole[hole.id]&.name].compact.join(" / ")
+          "<use #{attrs}><title>#{escape(title)}</title></use>"
         end)
         output.join
       end
@@ -385,6 +384,8 @@ module Breadkit
       end
 
       def component_labels_overlay_svg
+        return "" if @label_density == "none"
+
         @visible_components.filter_map do |component|
           holes = component.pins.values.filter_map { |pin| @circuit.board.hole(pin.hole_id) }
           next if holes.empty?
@@ -393,22 +394,62 @@ module Breadkit
           x, y = xs.minmax.sum / 2.0, ys.minmax.sum / 2.0
           shape = component.part.data.dig("render", "shape")
           label, baseline, font_size, background, foreground = case shape
-          when "resistor" then ["#{component.ref} #{component.value}", y - 7, 5, @colors[:board], @colors[:text]]
+          when "resistor" then [value_label(component, shape), y - 7, 5, @colors[:board], @colors[:text]]
           when "led_5mm" then [component.ref, y - 8, 5, @colors[:board], @colors[:text]]
           when "diode" then [component.ref, y - 5, 4.5, @colors[:board], @colors[:text]]
-          when "capacitor", "electrolytic" then [component.ref, y - 6, 4.5, @colors[:board], @colors[:text]]
+          when "capacitor", "electrolytic" then [value_label(component, shape), y - 6, 4.5, @colors[:board], @colors[:text]]
           when "dip" then [component.part.data.dig("render", "label") || component.ref, y + 1.5, 4.5, @colors[:dip_bg], @colors[:dip_text]]
           else next
           end
           width = [label.to_s.length * font_size * 0.62 + 6, 13].max
+          baseline = clear_label_baseline(x, baseline, width, font_size)
           background_options = { rx: 2, fill: background }
           background_options[:transform] = "rotate(-90 #{fmt(x)} #{fmt(baseline)})" if @rotated_scene
           opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
           body = rect(x - width / 2, baseline - font_size - 2, width, font_size + 4, **background_options)
           body += text(x, baseline, label, "font-size" => font_size, "font-weight" => 500,
-                       "fill" => foreground, "text-anchor" => "middle")
+                       "fill" => foreground, "text-anchor" => "middle", "paint-order" => "stroke",
+                       "stroke" => background, "stroke-width" => 1.5, "stroke-linejoin" => "round")
           layer_group("<g data-ref=\"#{escape(component.ref)}\"#{opacity}>#{body}</g>", read(component.attrs, "layer"))
         end.join
+      end
+
+      def value_label(component, shape)
+        return component.ref if @label_density == "compact" || !component.value
+
+        "#{component.ref} #{Breadkit::Value.new(component.value, category: shape)}"
+      end
+
+      def clear_label_baseline(x, baseline, width, font_size)
+        near = width / 2 + 5
+        far = width / 2 + 12
+        [baseline, baseline - near, baseline + near, baseline - far, baseline + far].min_by do |candidate|
+          bounds = label_bounds(x, candidate, width, font_size)
+          view_left, view_top, view_width, view_height = @view_box
+          clipped = bounds[0] < view_left || bounds[1] < view_top ||
+                    bounds[2] > view_left + view_width || bounds[3] > view_top + view_height
+          [clipped ? 1 : 0, label_wire_overlaps(bounds), (candidate - baseline).abs]
+        end
+      end
+
+      def label_bounds(x, baseline, width, font_size)
+        return [x - font_size - 2, baseline - width / 2, x + 2, baseline + width / 2] if @rotated_scene
+
+        [x - width / 2, baseline - font_size - 2, x + width / 2, baseline + 2]
+      end
+
+      def label_wire_overlaps(bounds)
+        left, top, right, bottom = bounds
+        @visible_wires.count do |wire|
+          from, to = endpoint_point(wire.from), endpoint_point(wire.to)
+          next false unless from && to
+
+          wire_route_points(wire, from, to).each_cons(2).any? do |first, last|
+            xs = [px(first[0]), px(last[0])].minmax
+            ys = [py(first[1]), py(last[1])].minmax
+            xs[0] <= right + 1 && xs[1] >= left - 1 && ys[0] <= bottom + 1 && ys[1] >= top - 1
+          end
+        end
       end
 
       def led_svg(component, pins, x, y)

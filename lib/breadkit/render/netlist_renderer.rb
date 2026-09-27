@@ -41,7 +41,7 @@ module Breadkit
         lines << %(<?xml version="1.0" encoding="UTF-8"?>)
         lines << %(<svg xmlns="http://www.w3.org/2000/svg" width="#{WIDTH}" height="#{height}" viewBox="0 0 #{WIDTH} #{height}" role="img" aria-label="Circuit netlist" data-view="netlist" data-theme="#{theme}"#{state&.name ? %( data-state="#{xml(state.name)}") : ""}>)
         lines << %(<title>Circuit netlist</title>)
-        lines << %(<desc>Each colored bus is one resolved net. Terminals attached to the same bus are electrically connected.</desc>)
+        lines << %(<desc>#{xml((["Each colored bus is one resolved net. Terminals on the same bus are connected."] + nets.map { |net| "#{net.name}: #{net.members.join(', ')}" }).join(' '))}</desc>)
         lines << %(<rect width="#{WIDTH}" height="#{height}" fill="#{colors[:background]}"/>)
         lines << %(<g font-family="Arial, Helvetica, sans-serif">)
         lines << %(<text x="48" y="39" fill="#{colors[:muted]}" font-size="11" font-weight="700" letter-spacing="2.4">BREADKIT / NETLIST</text>)
