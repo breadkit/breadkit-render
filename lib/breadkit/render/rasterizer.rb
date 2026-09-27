@@ -9,7 +9,7 @@ module Breadkit
         format = format.to_s
         backend = backend.to_s
         raise Error, "unsupported raster format: #{format}" unless %w[png jpeg webp pdf].include?(format)
-        raise Error, "unsupported raster backend: #{backend}" unless %w[auto rsvg vips magick].include?(backend)
+        raise Error, "unsupported raster backend: #{backend}" unless %w[auto rsvg resvg vips magick].include?(backend)
 
         begin
           scale = Float(scale)
@@ -23,10 +23,11 @@ module Breadkit
 
         candidates = case backend
         when "rsvg" then ["rsvg"]
+        when "resvg" then ["resvg"]
         when "magick" then ["magick"]
         when "vips" then ["vips"]
         else case format
-        when "png" then %w[rsvg vips magick]
+        when "png" then %w[rsvg resvg vips magick]
         when "pdf" then %w[rsvg]
         else %w[vips magick]
         end
@@ -39,13 +40,14 @@ module Breadkit
             raise if backend != "auto" || e.is_a?(TimeoutError)
           end
         end
-        raise Error, "no conversion backend found for #{format}; install librsvg, ruby-vips, or ImageMagick"
+        raise Error, "no conversion backend found for #{format}; install librsvg, resvg, ruby-vips, or ImageMagick"
       end
 
       private
 
       def supports?(name, format)
         return !!executable("rsvg-convert") if name == "rsvg" && %w[png pdf].include?(format)
+        return !!executable("resvg") if name == "resvg" && format == "png"
         return !!magick_command if name == "magick" && format != "pdf"
         return false unless name == "vips" && format != "pdf"
         require "vips"
@@ -57,6 +59,13 @@ module Breadkit
       def rsvg(svg, format, scale, _background, _quality, timeout)
         stdout, stderr, status = capture_command(executable("rsvg-convert"), "--format=#{format}", "--zoom=#{scale}", svg: svg, timeout: timeout)
         raise Error, "rsvg-convert failed: #{stderr}" unless status.success?
+        stdout
+      end
+
+      def resvg(svg, _format, scale, _background, _quality, timeout)
+        stdout, stderr, status = capture_command(executable("resvg"), "-z", scale.to_s, "-", "-c", svg: svg, timeout: timeout)
+        raise Error, "resvg failed: #{stderr}" unless status.success?
+
         stdout
       end
 

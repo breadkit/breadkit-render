@@ -1,0 +1,15 @@
+**
+!breadkit/
+!breadkit/breadkit.gemspec
+!breadkit/lib/
+!breadkit/lib/**
+!breadkit/data/
+!breadkit/data/**
+!breadkit/schema/
+!breadkit/schema/**
+!breadkit-render/
+!breadkit-render/breadkit-render.gemspec
+!breadkit-render/lib/
+!breadkit-render/lib/**
+!breadkit-render/exe/
+!breadkit-render/exe/**

@@ -889,6 +889,15 @@ RSpec.describe Breadkit::Render::CLI do
     expect { rasterizer.rasterize("", format: "png", timeout: 0) }.to raise_error(Breadkit::Render::Error, /timeout/)
   end
 
+  it "can send PNG rendering to the optional resvg backend" do
+    rasterizer = Breadkit::Render::Rasterizer.new
+    allow(rasterizer).to receive(:executable).with("resvg").and_return("/tools/resvg")
+    expect(rasterizer).to receive(:capture_command)
+      .with("/tools/resvg", "-z", "2.0", "-", "-c", svg: "<svg/>", timeout: 60)
+      .and_return(["PNG", "", instance_double(Process::Status, success?: true)])
+    expect(rasterizer.rasterize("<svg/>", format: "png", backend: "resvg")).to eq("PNG")
+  end
+
   it "stops external raster commands after the requested timeout" do
     rasterizer = Breadkit::Render::Rasterizer.new
     expect { rasterizer.send(:capture_command, RbConfig.ruby, "-e", "sleep 2", svg: "", timeout: 0.05) }

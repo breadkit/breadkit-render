@@ -34,7 +34,7 @@ module Breadkit
           opts.on("--focus REF") { |value| options[:focus] = value }
           opts.on("--highlight-net NAME") { |value| options[:highlight_net] = value }
           opts.on("--diff") { options[:diff] = true }
-          opts.on("--backend NAME", %w[auto rsvg vips magick]) { |value| options[:backend] = value }
+          opts.on("--backend NAME", %w[auto rsvg resvg vips magick]) { |value| options[:backend] = value }
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
           opts.on("--watch") { options[:watch] = true }
@@ -135,7 +135,7 @@ module Breadkit
             add_step_banner(svg, number, steps[index], steps, options[:theme])
           end
         else
-          circuit.states("all").map do |state|
+          circuit.states("all", budget: 256).map do |state|
             SvgRenderer.new.render(circuit, **render_options.merge(crop: "none", state: state, interactive_layers: false))
           end
         end

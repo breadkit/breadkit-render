@@ -85,4 +85,14 @@ RSpec.describe "APNG output" do
         .to output(/cannot select a single/).to_stderr
     end
   end
+
+  it "rejects circuits whose complete switch animation exceeds the frame budget" do
+    Dir.mktmpdir do |directory|
+      input = File.join(directory, "many-switches.bk.rb")
+      source = ["board :full"] + 9.times.map { |index| "button :SW#{index + 1}, at: 'e#{1 + index * 4}'" }
+      File.write(input, source.join("\n"))
+      expect { expect(Breadkit::Render::CLI.new.run([input, "--animate", "states", "-o", File.join(directory, "states.apng")])).to eq(2) }
+        .to output(/512 switch states exceed budget 256/).to_stderr
+    end
+  end
 end

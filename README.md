@@ -264,7 +264,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--focus REF` | none | Emphasize one component and its connected wires. |
 | `--highlight-net NAME` | none | Emphasize one net and its connected components. |
 | `--diff` | off | Compare two circuit files in a standalone HTML viewer. |
-| `--backend NAME` | `auto` | Use `rsvg`, `vips`, or `magick` for raster output. |
+| `--backend NAME` | `auto` | Use `rsvg`, `resvg`, `vips`, or `magick` for raster output. |
 | `--background COLOR` | white | Set the JPEG background with a CSS name, `#RGB`, or `#RRGGBB`; PNG and SVG reject it. |
 | `--quality N` | `90` | JPEG and WebP quality. |
 | `--print-template` | off | Export a full-board PDF with physical hole spacing for 100% printing. |
@@ -275,11 +275,29 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 
 ## Raster backends
 
-PNG and APNG use the first available backend: `rsvg-convert`, `ruby-vips`, then
-ImageMagick. JPEG and WebP use `ruby-vips` or ImageMagick. PDF uses
+PNG and APNG use the first available backend: `rsvg-convert`, `resvg`,
+`ruby-vips`, then ImageMagick. JPEG and WebP use `ruby-vips` or ImageMagick. PDF uses
 `rsvg-convert` and keeps the SVG as vector content. Install `librsvg`
 (`brew install librsvg` or `apt install librsvg2-bin`) for PDF output.
 `ruby-vips` needs a libvips build with SVG and WebP support for WebP output.
+The optional `resvg` executable also converts SVG to PNG; choose it with
+`--backend resvg` when installed.
+
+## Container image
+
+The [GHCR image](https://github.com/breadkit/breadkit-render/pkgs/container/breadkit-render)
+includes Ruby, Breadkit core, `rsvg-convert`, and Noto CJK fonts. It renders
+from the current source branches and supports SVG, PNG, PDF, and APNG:
+
+```sh
+docker run --rm -v "$PWD:/work" ghcr.io/breadkit/breadkit-render:main \
+  circuit.bk.rb --theme dark -o circuit.png
+```
+
+To build from sibling source checkouts, run this command from their parent
+directory: `docker build -f breadkit-render/Dockerfile -t breadkit-render .`.
+The published image records both source revisions in its OCI labels. Pin the
+`sha-<render commit>` image tag for a fixed renderer revision.
 
 ## Input safety
 
