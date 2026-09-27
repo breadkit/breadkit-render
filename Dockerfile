@@ -1,7 +1,7 @@
 FROM ruby:4.0-slim-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git librsvg2-bin fonts-noto-cjk fontconfig \
+    && apt-get install -y --no-install-recommends build-essential ca-certificates git librsvg2-bin fonts-noto-cjk fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 COPY breadkit/ /opt/breadkit/
