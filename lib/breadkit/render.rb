@@ -5,7 +5,7 @@ require "cgi/escape"
 require "open3"
 require_relative "render/version"
 require_relative "render/svg_renderer"
-require_relative "render/schematic_renderer"
+require_relative "render/netlist_renderer"
 require_relative "render/rasterizer"
 require_relative "render/cli"
 

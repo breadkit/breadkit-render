@@ -5,13 +5,14 @@ require "rexml/document"
 require "rexml/xpath"
 require "tmpdir"
 
-RSpec.describe Breadkit::Render::SchematicRenderer do
+RSpec.describe Breadkit::Render::NetlistRenderer do
   let(:input) { File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__) }
   let(:circuit) { Breadkit.load(input) }
 
   it "draws every component and supply terminal on its resolved net" do
     document = REXML::Document.new(described_class.new.render(circuit))
-    expect(document.root.attributes["data-view"]).to eq("schematic")
+    expect(document.root.attributes["data-view"]).to eq("netlist")
+    expect(document.root.elements["title"].text).to eq("Circuit netlist")
 
     terminals = circuit.components.values.flat_map { |component| component.pins.values.map { |pin| "#{component.ref}.#{pin.name}" } }
     terminals.concat(circuit.supplies.flat_map { |supply| ["#{supply.name}.+", "#{supply.name}.-"] })
@@ -56,17 +57,17 @@ RSpec.describe Breadkit::Render::SchematicRenderer do
     expect(document.root.attributes["data-theme"]).to eq("dark")
   end
 
-  it "selects the schematic view through the CLI and rejects incompatible controls" do
+  it "selects the netlist view through the CLI and rejects incompatible controls" do
     Dir.mktmpdir do |directory|
-      output = File.join(directory, "schematic.svg")
-      expect(Breadkit::Render::CLI.new.run([input, "--view", "schematic", "-o", output])).to eq(0)
-      expect(REXML::Document.new(File.read(output)).root.attributes["data-view"]).to eq("schematic")
+      output = File.join(directory, "netlist.svg")
+      expect(Breadkit::Render::CLI.new.run([input, "--view", "netlist", "-o", output])).to eq(0)
+      expect(REXML::Document.new(File.read(output)).root.attributes["data-view"]).to eq("netlist")
       expect(Breadkit::Render::CLI.new.run([input, "-o", output])).to eq(0)
-      expect(REXML::Document.new(File.read(output)).root.attributes["data-view"]).not_to eq("schematic")
-      expect { expect(Breadkit::Render::CLI.new.run([input, "--view", "schematic", "--layer", "Power", "-o", output])).to eq(2) }
-        .to output(/--layer is unavailable in schematic view/).to_stderr
-      expect { expect(Breadkit::Render::CLI.new.run([input, "--view", "schematic", "-o", File.join(directory, "schematic.html")])).to eq(2) }
-        .to output(/HTML is unavailable in schematic view/).to_stderr
+      expect(REXML::Document.new(File.read(output)).root.attributes["data-view"]).not_to eq("netlist")
+      expect { expect(Breadkit::Render::CLI.new.run([input, "--view", "netlist", "--layer", "Power", "-o", output])).to eq(2) }
+        .to output(/--layer is unavailable in netlist view/).to_stderr
+      expect { expect(Breadkit::Render::CLI.new.run([input, "--view", "netlist", "-o", File.join(directory, "netlist.html")])).to eq(2) }
+        .to output(/HTML is unavailable in netlist view/).to_stderr
     end
   end
 end

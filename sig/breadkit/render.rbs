@@ -22,7 +22,7 @@ module Breadkit
       ) -> String
     end
 
-    class SchematicRenderer
+    class NetlistRenderer
       def render: (Breadkit::Circuit circuit, ?theme: String, ?state: Breadkit::State?) -> String
     end
 

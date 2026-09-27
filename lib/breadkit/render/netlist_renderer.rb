@@ -4,7 +4,7 @@ module Breadkit
   module Render
     # Shows each resolved net as a bus with its connected physical terminals.
     # This layout keeps large circuits readable without crossing unrelated nets.
-    class SchematicRenderer
+    class NetlistRenderer
       COLORS = %w[#d85e65 #4f8fd6 #319b7d #aa75c7 #c58a37 #4a9da7 #a0b95c #d57da8
                   #8499df #d67c53 #55b58c #c299d3].freeze
       WIDTH = 1120
@@ -13,7 +13,7 @@ module Breadkit
       TERMINALS_PER_ROW = 5
 
       def render(circuit, theme: "light", state: nil)
-        raise ArgumentError, "unknown schematic theme: #{theme}" unless %w[light dark print].include?(theme)
+        raise ArgumentError, "unknown netlist theme: #{theme}" unless %w[light dark print].include?(theme)
 
         colors = palette(theme)
         nets = circuit.nets(state)
@@ -21,7 +21,7 @@ module Breadkit
         terminals = devices.flat_map { |device| device[:terminals] }
         terminal_nets = nets.each_with_object({}) { |net, index| net.members.each { |member| index[member] = net } }
         terminals.each do |terminal|
-          raise Error, "schematic cannot resolve terminal #{terminal[:id]}" unless terminal_nets[terminal[:id]]
+          raise Error, "netlist cannot resolve terminal #{terminal[:id]}" unless terminal_nets[terminal[:id]]
         end
 
         device_rows = (devices.length.to_f / 3).ceil
@@ -39,13 +39,13 @@ module Breadkit
 
         lines = []
         lines << %(<?xml version="1.0" encoding="UTF-8"?>)
-        lines << %(<svg xmlns="http://www.w3.org/2000/svg" width="#{WIDTH}" height="#{height}" viewBox="0 0 #{WIDTH} #{height}" role="img" aria-label="Circuit schematic" data-view="schematic" data-theme="#{theme}"#{state&.name ? %( data-state="#{xml(state.name)}") : ""}>)
-        lines << %(<title>Circuit schematic</title>)
+        lines << %(<svg xmlns="http://www.w3.org/2000/svg" width="#{WIDTH}" height="#{height}" viewBox="0 0 #{WIDTH} #{height}" role="img" aria-label="Circuit netlist" data-view="netlist" data-theme="#{theme}"#{state&.name ? %( data-state="#{xml(state.name)}") : ""}>)
+        lines << %(<title>Circuit netlist</title>)
         lines << %(<desc>Each colored bus is one resolved net. Terminals attached to the same bus are electrically connected.</desc>)
         lines << %(<rect width="#{WIDTH}" height="#{height}" fill="#{colors[:background]}"/>)
         lines << %(<g font-family="Arial, Helvetica, sans-serif">)
         lines << %(<text x="48" y="39" fill="#{colors[:muted]}" font-size="11" font-weight="700" letter-spacing="2.4">BREADKIT / NETLIST</text>)
-        lines << %(<text x="48" y="76" fill="#{colors[:text]}" font-size="29" font-weight="700">Circuit schematic</text>)
+        lines << %(<text x="48" y="76" fill="#{colors[:text]}" font-size="29" font-weight="700">Circuit netlist</text>)
         lines << %(<text x="1072" y="75" text-anchor="end" fill="#{colors[:muted]}" font-size="12">#{devices.length} devices  ·  #{nets.length} nets#{state&.name ? "  ·  #{xml(state.name)} closed" : ""}</text>)
         lines << %(<line x1="48" y1="93" x2="1072" y2="93" stroke="#{colors[:border]}"/>)
 

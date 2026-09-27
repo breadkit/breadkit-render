@@ -66,25 +66,25 @@ bkrender circuit.bk.rb -o circuit.webp --quality 85
 bkrender circuit.bk.rb -o circuit.pdf
 bkrender circuit.bk.rb --print-template -o board-template.pdf
 bkrender circuit.bk.rb -o circuit.html --theme dark
-bkrender circuit.bk.rb --view schematic --theme dark -o schematic.svg
+bkrender circuit.bk.rb --view netlist --theme dark -o netlist.svg
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
 
 PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
 
-## Schematic view
+## Netlist view
 
-`--view schematic` draws the resolved netlist as one bus per net. Every component
+`--view netlist` draws the resolved netlist as one bus per net. Every component
 and supply terminal appears under the net it actually connects to. The layout
 stays readable for large circuits by keeping each net in its own row; it does
 not attempt conventional electronic symbols or show the physical wire route.
 
 <p align="center">
-  <img src="docs/images/led-schematic.png" width="700" alt="Dark schematic view of a switch, resistor, LED, and USB supply grouped by four connected nets">
+  <img src="docs/images/led-netlist.png" width="700" alt="Dark netlist view of a switch, resistor, LED, and USB supply grouped by four connected nets">
 </p>
 
-Use `--state SW1` to render the switch's closed-state connectivity. Schematic
+Use `--state SW1` to render the switch's closed-state connectivity. Netlist
 view supports SVG, PNG, JPEG, WebP, and PDF. HTML, diff, and breadboard-only
 controls such as `--layer`, `--rail-pattern`, and `--focus` are unavailable.
 
@@ -134,7 +134,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | --- | --- | --- |
 | `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.pdf` select the format. |
 | `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, `jpeg`, `webp`, or `pdf`. Conflicting extensions are errors. |
-| `--view NAME` | `breadboard` | `breadboard` or `schematic` (resolved net buses). |
+| `--view NAME` | `breadboard` | `breadboard` or `netlist` (resolved net buses). |
 | `--scale N` | `2` | Image and PDF output scale. |
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |
