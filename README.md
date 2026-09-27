@@ -20,7 +20,7 @@ breadboard, schematic, and netlist views. Export SVG, HTML, images, PDF, or
 animated assembly steps.
 
 <p align="center">
-  <img src="docs/images/sensor-demo.png" width="800" alt="RP2040 sensor circuit on a full-size breadboard with OLED, two SHT31 modules, switches, and IR modules">
+  <img src="site/images/sensor-demo.png" width="800" alt="RP2040 sensor circuit on a full-size breadboard with OLED, two SHT31 modules, switches, and IR modules">
 </p>
 
 <p align="center">
