@@ -14,6 +14,21 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(described_class.new.render(circuit, legend: true, show_nets: true)).to eq(svg)
   end
 
+  it "keeps component labels above jumper wires in dense circuits" do
+    %w[02_555_blinker 04_led_bar].each do |name|
+      path = File.expand_path("../../../breadkit/examples/#{name}.bk.rb", __dir__)
+      svg = described_class.new.render(Breadkit.load(path))
+      document = REXML::Document.new(svg)
+      expect(svg.index('id="wires"')).to be < svg.index('id="component-labels"')
+      label = REXML::XPath.first(document, "//g[@id='component-labels']/g[@data-ref='R1']")
+      expect(label.elements["rect"].attributes["transform"]).to eq(label.elements["text"].attributes["transform"])
+      expect(REXML::XPath.first(document, "//g[@id='component-labels']/g[@data-ref='D1']/text").text).to eq("D1")
+    end
+    path = File.expand_path("../../../breadkit/examples/02_555_blinker.bk.rb", __dir__)
+    document = REXML::Document.new(described_class.new.render(Breadkit.load(path)))
+    expect(REXML::XPath.first(document, "//g[@id='component-labels']/g[@data-ref='U1']/text").text).to eq("NE555")
+  end
+
   it "draws model-specific seven-segment and RGB LED bodies" do
     builder = Breadkit::DSL::Builder.new
     builder.instance_eval('board :full; part :SEG1, :sc56_11ewa, at: "b1"; part :RGB1, :wp154a4sureqbfzgc, pins: %w[a15 a16 a17 a18]', "displays.bk.rb", 1)
@@ -509,6 +524,23 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 end
 
 RSpec.describe Breadkit::Render::CLI do
+  it "prints warnings in every view without --force" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :mini; resistor :R1, "330", pins: %w[a1 a3]', "warning.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    diagram.diagnostics << Breadkit::Diagnostic.new(code: "warning", severity: "warning", message: "check placement", location: nil, targets: [])
+    allow(Breadkit).to receive(:load).and_return(diagram)
+
+    Dir.mktmpdir do |directory|
+      %w[breadboard netlist schematic].each do |view|
+        output = File.join(directory, "#{view}.svg")
+        expect { expect(described_class.new.run(["warning.bk.rb", "--view", view, "-o", output])).to eq(0) }
+          .to output(/warning: check placement/).to_stderr
+        expect(File).to exist(output)
+      end
+    end
+  end
+
   it "prints warnings and forced errors to stderr" do
     input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
     diagram = Breadkit.load(input)

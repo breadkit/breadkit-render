@@ -150,7 +150,8 @@ module Breadkit
         svg << "<g id=\"components\">#{components_svg}</g>"
         svg << "<g id=\"offboard\">#{offboard_svg}</g>"
         svg << "<g id=\"wires\">#{wires_svg}</g>"
-        svg << "<g id=\"component-labels\">#{component_labels_overlay_svg}</g>" if @multi_board
+        labels = component_labels_overlay_svg
+        svg << "<g id=\"component-labels\">#{labels}</g>" unless labels.empty?
         svg << "<g id=\"labels\">#{labels_svg}</g>"
         svg << "<g id=\"nets\">#{nets_svg}</g><g id=\"annotations\">#{annotations_svg}</g>"
         svg << "</g>" if transform
@@ -380,24 +381,32 @@ module Breadkit
         out << rect(x - 12, y - 4, 24, 8, rx: 3, fill: @colors[:resistor_bg], stroke: @colors[:resistor_border], data_ref: component.ref)
         bands = resistor_bands(component.value, bands: component.attrs[:bands] || 4)
         bands.each_with_index { |color, index| out << rect(x - (bands.length == 5 ? 9 : 7) + index * 4, y - 4, 1.7, 8, fill: color) }
-        out << text(x, y - 7, "#{component.ref} #{component.value}", "font-size" => 5, "font-weight" => 500, "text-anchor" => "middle") unless @multi_board
         out.join
       end
 
       def component_labels_overlay_svg
         @visible_components.filter_map do |component|
-          next unless component.part.data.dig("render", "shape") == "resistor"
-
           holes = component.pins.values.filter_map { |pin| @circuit.board.hole(pin.hole_id) }
           next if holes.empty?
 
-          x = (holes.map { |hole| px(hole.x) }.minmax.sum) / 2.0
-          y = (holes.map { |hole| py(hole.y) }.minmax.sum) / 2.0
-          label = "#{component.ref} #{component.value}"
-          width = [label.length * 3.1 + 6, 20].max
+          xs, ys = holes.map { |hole| px(display_hole(hole).x) }, holes.map { |hole| py(display_hole(hole).y) }
+          x, y = xs.minmax.sum / 2.0, ys.minmax.sum / 2.0
+          shape = component.part.data.dig("render", "shape")
+          label, baseline, font_size, background, foreground = case shape
+          when "resistor" then ["#{component.ref} #{component.value}", y - 7, 5, @colors[:board], @colors[:text]]
+          when "led_5mm" then [component.ref, y - 8, 5, @colors[:board], @colors[:text]]
+          when "diode" then [component.ref, y - 5, 4.5, @colors[:board], @colors[:text]]
+          when "capacitor", "electrolytic" then [component.ref, y - 6, 4.5, @colors[:board], @colors[:text]]
+          when "dip" then [component.part.data.dig("render", "label") || component.ref, y + 1.5, 4.5, @colors[:dip_bg], @colors[:dip_text]]
+          else next
+          end
+          width = [label.to_s.length * font_size * 0.62 + 6, 13].max
+          background_options = { rx: 2, fill: background }
+          background_options[:transform] = "rotate(-90 #{fmt(x)} #{fmt(baseline)})" if @rotated_scene
           opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
-          body = rect(x - width / 2, y - 14, width, 9, rx: 2, fill: @colors[:board])
-          body += text(x, y - 7, label, "font-size" => 5, "font-weight" => 500, "text-anchor" => "middle")
+          body = rect(x - width / 2, baseline - font_size - 2, width, font_size + 4, **background_options)
+          body += text(x, baseline, label, "font-size" => font_size, "font-weight" => 500,
+                       "fill" => foreground, "text-anchor" => "middle")
           layer_group("<g data-ref=\"#{escape(component.ref)}\"#{opacity}>#{body}</g>", read(component.attrs, "layer"))
         end.join
       end
@@ -410,14 +419,12 @@ module Breadkit
         color = { "red" => "#df5550", "green" => "#5fbf69", "blue" => "#6a9df0", "yellow" => "#f0d958" }.fetch(color, color)
         out << circle(x, y, 5.5, fill: color, stroke: @colors[:component_border], data_ref: component.ref)
         out << polarity_marker(component, pins, x, y, 5.0, @colors[:component_border])
-        out << text(x, y - 8, component.ref, "font-size" => 5, "font-weight" => 500, "text-anchor" => "middle")
         out.join
       end
 
       def diode_svg(component, pins, x, y)
         [lead_lines(pins, x, y), rect(x - 7, y - 3, 14, 6, rx: 1, fill: @colors[:diode_bg], stroke: @colors[:diode_border], data_ref: component.ref),
-         polarity_marker(component, pins, x, y, 3.0, @colors[:diode_mark]),
-         text(x, y - 5, component.ref, "font-size" => 4.5, "font-weight" => 500, "text-anchor" => "middle")].join
+         polarity_marker(component, pins, x, y, 3.0, @colors[:diode_mark])].join
       end
 
       def capacitor_svg(component, pins, x, y, electrolytic:)
@@ -430,7 +437,6 @@ module Breadkit
           offset_y = offset_x.zero? ? (positive && positive[1] > y ? 5 : -5) : 0
           out << text(x + offset_x, y + offset_y + 1.5, "+", "font-size" => 4, "text-anchor" => "middle")
         end
-        out << text(x, y - 6, component.ref, "font-size" => 4.5, "font-weight" => 500, "text-anchor" => "middle")
         out.join
       end
 
@@ -442,8 +448,6 @@ module Breadkit
         notch_x = first_pin && px(first_pin.x) > xs.sum / xs.length ? x2 - 2 : x1 + 2
         out << tag("path", d: "M #{fmt(notch_x)} #{fmt(middle - 2)} Q #{fmt(notch_x + (notch_x == x1 + 2 ? 2 : -2))} #{fmt(middle)} #{fmt(notch_x)} #{fmt(middle + 2)}",
                     fill: "none", stroke: @colors[:dip_notch], stroke_width: 0.8)
-        out << text((x1 + x2) / 2, middle + 1.5, component.part.data.dig("render", "label") || component.ref,
-                    "font-size" => 4.5, "fill" => @colors[:dip_text], "text-anchor" => "middle")
         pins.each do |pin, hole|
           display = display_hole(hole)
           out << text(px(display.x), py(display.y) + (display.y > 4 ? 4 : -2), pin.number, "font-size" => 3.5, "text-anchor" => "middle")
