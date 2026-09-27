@@ -323,7 +323,8 @@ module Breadkit
         number_y = @orientation == "portrait" ? py(-1) : py(@circuit.board.height)
         @circuit.board.definition.data.dig("terminal", "rows").each do |row|
           y = @circuit.board.holes.values.find { |hole| hole.row == row }&.y
-          out << text(-7, py(y), row, "font-size" => 8, "font-weight" => 500, "fill" => @colors[:label], "text-anchor" => "middle") if y
+          row_x = @orientation == "landscape" ? board_bounds.then { |left, _top, width, _height| left + width - 6 } : -7
+          out << text(row_x, py(y), row, "font-size" => 8, "font-weight" => 500, "fill" => @colors[:label], "text-anchor" => "middle") if y
         end
         (1..@circuit.board.width).each do |col|
           next unless col == 1 || (col % 5).zero?
@@ -551,7 +552,13 @@ module Breadkit
           next unless label
           label = pin.name if label == true
           length = label.to_s.length * 5.8 * 0.6
-          if @orientation == "landscape" && rotated_footprint
+          label_transform = nil
+          if @orientation == "landscape" && width > height * 1.5 && pins.length >= 8
+            inward = center_y > pin_y
+            label_x, label_y = pin_x, pin_y + (inward ? 6 : -6)
+            label_anchor = inward ? "start" : "end"
+            label_transform = "rotate(90 #{fmt(label_x)} #{fmt(label_y)})"
+          elsif @orientation == "landscape" && rotated_footprint
             label_x = pin_x
             label_y = [pin_y - 9, pin_y + 9, pin_y - 18, pin_y + 18].find do |candidate|
               candidate.between?(y + 4, y + height - 4) &&
@@ -576,8 +583,10 @@ module Breadkit
             label_x, label_y = pin_x, pin_y + (center_y > pin_y ? label_gap : -label_gap)
             label_anchor = @orientation == "portrait" ? (center_y > pin_y ? "end" : "start") : "middle"
           end
-          out << text(label_x, label_y, label, "font-size" => 5.8, "font-weight" => 500,
-                      "fill" => render["text_color"] || @colors[:text], "text-anchor" => label_anchor)
+          attrs = { "font-size" => 5.8, "font-weight" => 500, "fill" => render["text_color"] || @colors[:text],
+                    "text-anchor" => label_anchor }
+          attrs["transform"] = label_transform if label_transform
+          out << text(label_x, label_y, label, attrs)
         end
         label = render["label"] || component.ref
         font_size = [[ [width, height].min / 6, 6].max, 10].min
@@ -1267,7 +1276,12 @@ module Breadkit
               [module_point, [module_point[0], lane], [x, lane], [x, board_point[1]], board_point]
             else
               y = board_point[1] + breakout
-              [module_point, [lane, module_point[1]], [lane, y], [board_point[0], y], board_point]
+              detour = landscape_terminal_detour(board_point[0], lane, y, index)
+              if detour
+                [module_point, [lane, module_point[1]], [lane, detour], [board_point[0], detour], [board_point[0], y], board_point]
+              else
+                [module_point, [lane, module_point[1]], [lane, y], [board_point[0], y], board_point]
+              end
             end
           elsif hole&.kind == :rail && @orientation == "portrait"
             component = module_from || module_to
@@ -1292,6 +1306,19 @@ module Breadkit
           points << to unless to_offset.zero?
         end
         points
+      end
+
+      def landscape_terminal_detour(from_x, to_x, y, index)
+        obstacles = @visible_components.filter_map do |component|
+          next unless component.part.placement == "footprint" && component.part.data.dig("render", "shape") == "module"
+
+          pins = component.pins.values.filter_map { |pin| [pin, @circuit.board.hole(pin.hole_id)] if pin.hole_id }
+          next if pins.empty?
+
+          x, bottom, width, height = module_bounds(component, pins)
+          bottom + height if y.between?(bottom - 0.3, bottom + height + 0.3) && [from_x, to_x].min < x + width && [from_x, to_x].max > x
+        end
+        obstacles.max && obstacles.max + 1.2 + index * 0.35
       end
 
       def edge_breakout_offset(wire, x)

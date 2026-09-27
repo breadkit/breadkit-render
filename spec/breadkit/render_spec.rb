@@ -487,6 +487,46 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     end
   end
 
+  it "keeps landscape board rows and dense module pin names clear" do
+    input = File.expand_path("../../../breadkit/examples/05_sensor_demo.bk.rb", __dir__)
+    document = REXML::Document.new(described_class.new.render(Breadkit.load(input), orientation: "landscape"))
+    board = REXML::XPath.first(document, "//g[@id='board']/rect")
+    right = board.attributes["x"].to_f + board.attributes["width"].to_f
+    row_labels = REXML::XPath.match(document, "//g[@id='labels']/text").select { |node| %w[a b c d e f g h i j].include?(node.text) }
+    expect(row_labels.length).to eq(10)
+    expect(row_labels.all? { |node| node.attributes["x"].to_f > right - 10 }).to be(true)
+
+    pico = REXML::XPath.first(document, "//g[@data-ref='PICO']")
+    %w[GP0 GP1 GP2 GP3 GP4 GND VBUS VIN].each do |name|
+      label = pico.elements.to_a("text").find { |node| node.text == name }
+      expect(label.attributes["transform"]).to match(/rotate\(90 /)
+    end
+  end
+
+  it "routes landscape offboard I2C jumpers around the Emitter body" do
+    input = File.expand_path("../../../breadkit/examples/05_sensor_demo.bk.rb", __dir__)
+    circuit = Breadkit.load(input)
+    document = REXML::Document.new(described_class.new.render(circuit, orientation: "landscape"))
+    emitter = REXML::XPath.first(document, "//g[@id='components']//g[@data-ref='IR_TX']/rect")
+    left, top, width, height = %w[x y width height].map { |key| emitter.attributes[key].to_f }
+    i2c = circuit.wires.select { |wire| wire.from.match?(/\A(?:OLED|SHT31[AB])\.(?:SCL|SDA)\z/) }
+    expect(i2c.length).to eq(6)
+    i2c.each do |wire|
+      path = REXML::XPath.first(document, "//g[@id='wires']//path[@data-ref='#{wire.id}']")
+      points = path.attributes["d"].scan(/[-\d.]+ [-\d.]+/).map { |pair| pair.split.map(&:to_f) }
+      crossing = points.each_cons(2).any? do |first, last|
+        xs, ys = [first[0], last[0]].minmax, [first[1], last[1]].minmax
+        xs[0] < left + width && xs[1] > left && ys[0] < top + height && ys[1] > top
+      end
+      expect(crossing).to be(false), "#{wire.id} crosses the Emitter body"
+      crossing_segments = points.each_cons(2).select do |first, last|
+        xs = [first[0], last[0]].minmax
+        xs[0] < left && xs[1] > left + width
+      end
+      expect(crossing_segments.all? { |first, last| first[1] < top && last[1] < top }).to be(true)
+    end
+  end
+
   it "maps resistor values to the expected four-band colors" do
     renderer = described_class.new
     colors = %w[#000000 #8b4513 #ff0000 #ff8c00 #ffff00 #008000 #0000ff #800080 #808080 #ffffff]
