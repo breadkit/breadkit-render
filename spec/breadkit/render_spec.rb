@@ -722,6 +722,34 @@ RSpec.describe Breadkit::Render::CLI do
     end
   end
 
+  it "updates an HTML watch revision only when the source changes" do
+    Dir.mktmpdir do |directory|
+      input = File.join(directory, "circuit.bk.rb")
+      output = File.join(directory, "circuit.htm")
+      sidecar = "#{output}.reload.js"
+      File.write(input, 'board :mini; resistor :R1, "330", pins: %w[a1 a3]')
+      first_revision = nil
+      ticks = 0
+      cli = described_class.new
+      allow(cli).to receive(:sleep) do
+        ticks += 1
+        if ticks == 1
+          first_revision = File.read(sidecar)
+          File.write(input, 'board :mini; resistor :R2, "330", pins: %w[a1 a3]')
+        else
+          raise Interrupt
+        end
+      end
+
+      expect(cli.run([input, "--watch", "--format", "html", "-o", output])).to eq(0)
+      html = File.read(output)
+      expect(html).to include('data-ref="R2"', "__breadkitWatch", "setInterval", "encodeURIComponent")
+      expect(File.read(sidecar)).to match(/__breadkitWatch\("\d+"\)/)
+      expect(File.read(sidecar)).not_to eq(first_revision)
+      expect(ticks).to eq(2)
+    end
+  end
+
   it "passes label density to breadboard output and rejects it in netlist view" do
     Dir.mktmpdir do |directory|
       input = File.join(directory, "labels.bk.rb")

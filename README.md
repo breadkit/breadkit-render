@@ -258,7 +258,10 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
   the old view and added wires are green in the new view; matching wires use
   their normal colors.
 - `--watch -o diagram.svg circuit.bk.rb` renders immediately and updates the
-  file when a circuit or part file beside the input changes. Press Ctrl-C to stop.
+  file when a circuit or part file beside the input changes. With HTML output,
+  the open browser tab reloads only after a successful rerender, including
+  when opened through `file://`. A sibling `.reload.js` revision file is
+  generated beside the HTML. Press Ctrl-C to stop.
 - `--assembly-guide -o guide.html circuit.bk.rb` creates a printable guide with
   a bill of materials, one board diagram per declared `step`, and a list of
   parts and jumper connections added at each step. The circuit must declare
@@ -308,7 +311,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--quality N` | `90` | JPEG and WebP quality. |
 | `--print-template` | off | Export a full-board PDF with physical hole spacing for 100% printing. |
 | `--static` | off | Omit SVG layer controls and scripts. |
-| `--watch` | off | Keep rendering to `-o PATH` when nearby circuit or part files change. |
+| `--watch` | off | Keep rendering to `-o PATH` when nearby circuit or part files change; watched HTML reloads in an open browser tab. |
 | `--force` | off | Draw resolved elements even when input has layout errors. |
 | `--render-timeout SECONDS` | 60 | Limit external raster conversion time. |
 

@@ -86,7 +86,7 @@ module Breadkit
         if options[:watch]
           raise ArgumentError, "--watch requires -o PATH" unless options[:output]
           original_args.delete_at(original_args.index("--watch"))
-          return watch(input, second_input, options[:annotations], options[:output], original_args)
+          return watch(input, second_input, options[:annotations], options[:output], original_args, format)
         end
         return render_diff(input, second_input, options, format) if options[:diff]
         circuit = Breadkit.load(input)
@@ -152,20 +152,21 @@ module Breadkit
         steps = circuit.respond_to?(:steps) ? circuit.steps : []
         raise ArgumentError, "circuit has no assembly steps" if steps.empty?
 
+        physical_wires = circuit.wires.reject { |wire| wire.electrical == false }
         items = circuit.components.values.group_by { |component| [component.part.id, bom_value(component)] }
         rows = items.sort_by { |(part, value), _| [part, value.to_s] }.map do |(part, value), components|
           cells = [components.length, part, value, components.map(&:ref).sort.join(", ")]
           "<tr>#{cells.map { |cell| "<td>#{CGI.escapeHTML(cell.to_s)}</td>" }.join}</tr>"
         end
-        rows << "<tr><td>#{circuit.wires.length}</td><td>Jumper wire</td><td></td><td></td></tr>"
+        rows << "<tr><td>#{physical_wires.length}</td><td>Jumper wire</td><td></td><td></td></tr>"
         panels = steps.each_with_index.map do |step, index|
           number = index + 1
-          stage = circuit_for_step(circuit, number)
+          stage = circuit_for_step(circuit, number, physical_only: true)
           svg = SvgRenderer.new.render(stage, **render_options.merge(crop: "none", interactive_layers: false))
                            .sub(/\A<\?xml[^>]*\?>\s*/, "")
           heading = CGI.escapeHTML(step[:title] || "Assembly step")
           added_parts = circuit.components.values.select { |component| component.step == number }.map(&:ref).sort
-          added_wires = circuit.wires.select { |wire| wire.step == number }.map { |wire| "#{wire.from} → #{wire.to}" }
+          added_wires = physical_wires.select { |wire| wire.step == number }.map { |wire| "#{wire.from} → #{wire.to}" }
           changes = []
           changes << "Place #{added_parts.join(', ')}" unless added_parts.empty?
           changes.concat(added_wires.map { |wire| "Connect #{wire}" })
@@ -193,7 +194,7 @@ module Breadkit
               @media print{body{background:white;color:black}main{max-width:none;padding:0}section{break-inside:avoid;border-color:#999}.step{break-before:page}}
             </style>
           </head>
-          <body><main><h1>#{title}</h1><p class="intro">#{steps.length} assembly steps · #{circuit.components.length} parts · #{circuit.wires.length} jumper wires</p>
+          <body><main><h1>#{title}</h1><p class="intro">#{steps.length} assembly steps · #{circuit.components.length} parts · #{physical_wires.length} jumper #{physical_wires.length == 1 ? 'wire' : 'wires'}</p>
             <section><h2>Bill of materials</h2><table id="bom"><thead><tr><th>Qty</th><th>Part</th><th>Value</th><th>Refs</th></tr></thead><tbody>#{rows.join}</tbody></table></section>
             #{panels.join("\n")}
           </main></body></html>
@@ -237,13 +238,16 @@ module Breadkit
         ApngEncoder.new.encode(images, delay_ms: options[:frame_delay] || 800)
       end
 
-      def watch(input, second_input, annotations, output, args)
+      def watch(input, second_input, annotations, output, args, format)
         root = File.dirname(File.expand_path(input))
         paths = [input, second_input, annotations].compact.map { |path| File.expand_path(path) }
         snapshot = watch_snapshot(root, paths, output)
         warn "bkrender: watching #{root}; press Ctrl-C to stop"
         loop do
-          warn "bkrender: rendered #{output}" if run(args.dup).zero?
+          if run(args.dup).zero?
+            write_live_reload(output) if format == "html"
+            warn "bkrender: rendered #{output}"
+          end
           loop do
             sleep 0.5
             updated = watch_snapshot(root, paths, output)
@@ -255,6 +259,32 @@ module Breadkit
         end
       rescue Interrupt
         0
+      end
+
+      def write_live_reload(output)
+        revision = Process.clock_gettime(Process::CLOCK_REALTIME, :nanosecond).to_s
+        sidecar = "#{output}.reload.js"
+        filename = JSON.generate(File.basename(sidecar)).gsub("<", "\\u003c")
+        script = <<~HTML
+          <script>
+          (() => {
+            const revision = #{JSON.generate(revision)};
+            const file = #{filename};
+            window.__breadkitWatch = incoming => { if (incoming !== revision) location.reload(); };
+            setInterval(() => {
+              const tag = document.createElement('script');
+              tag.src = encodeURIComponent(file) + '?t=' + Date.now();
+              tag.onload = tag.onerror = () => tag.remove();
+              document.head.append(tag);
+            }, 1000);
+          })();
+          </script>
+        HTML
+        html = File.binread(output)
+        raise Error, "cannot add live reload to HTML output" unless html.match?(%r{</body>}i)
+
+        File.binwrite(output, html.sub(%r{</body>}i) { "#{script}</body>" })
+        File.binwrite(sidecar, "window.__breadkitWatch(#{JSON.generate(revision)});\n")
       end
 
       def watch_snapshot(root, paths, output)
@@ -290,10 +320,10 @@ module Breadkit
         steps[number - 1] || raise(ArgumentError, "unknown assembly step: #{number}")
       end
 
-      def circuit_for_step(circuit, number)
+      def circuit_for_step(circuit, number, physical_only: false)
         visible = ->(item) { !item.step || item.step <= number }
         components = circuit.components.select { |_ref, component| visible.call(component) }
-        wires = circuit.wires.select(&visible)
+        wires = circuit.wires.select { |wire| visible.call(wire) && (!physical_only || wire.electrical != false) }
         supplies = circuit.supplies.select(&visible)
         labels = circuit.labels.select(&visible)
         future_refs = (circuit.components.keys - components.keys) + (circuit.supplies.map(&:name) - supplies.map(&:name))
@@ -364,7 +394,7 @@ module Breadkit
         extension = File.extname(options[:output].to_s).downcase
         from_path = { ".svg" => "svg", ".html" => "html", ".png" => "png", ".jpg" => "jpeg", ".jpeg" => "jpeg",
                       ".webp" => "webp", ".pdf" => "pdf", ".apng" => "apng" }[extension]
-        raise ArgumentError, "unsupported output extension: #{extension}" if options[:output] && !from_path
+        raise ArgumentError, "unsupported output extension: #{extension}" if options[:output] && !from_path && !options[:format]
         if options[:format] && from_path && options[:format] != from_path
           raise ArgumentError, "--format conflicts with output extension"
         end

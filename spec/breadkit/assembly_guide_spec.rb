@@ -14,11 +14,15 @@ RSpec.describe "assembly guide" do
         end
         step 2, title: "Wire it" do
           wire "b3", "b7", color: :blue
+          wire "a2", "a3", electrical: false
         end
       RUBY
       expect(Breadkit::Render::CLI.new.run([input, "--assembly-guide", "-o", output])).to eq(0)
       html = File.read(output)
       expect(html).to include('<table id="bom">', "Place parts", "Wire it", "R1, R2", "Jumper wire", "330Ω")
+      expect(html).to include("1 jumper wire", "Connect b3 → b7")
+      expect(html).not_to include("Connect a2 → a3", "<td>2</td><td>Jumper wire</td>")
+      expect(html).not_to include('data-ref="W2"')
       expect(html.scan(/<svg\b/).length).to eq(2)
       expect(html).to include("Step 1 of 2", "Step 2 of 2")
     end
