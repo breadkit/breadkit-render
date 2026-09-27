@@ -18,6 +18,8 @@ module Breadkit
           opts.on("--view NAME", %w[breadboard netlist schematic]) { |value| options[:view] = value }
           opts.on("--scale N", Float) { |value| options[:scale] = value }
           opts.on("--theme NAME", %w[light dark print]) { |value| options[:theme] = value }
+          opts.on("--theme-file PATH") { |value| options[:theme_file] = value }
+          opts.on("--font-file PATH") { |value| options[:font_file] = value }
           opts.on("--orientation NAME", %w[portrait landscape]) { |value| options[:orientation] = value }
           opts.on("--rail-pattern PATTERN", SvgRenderer::RAIL_PATTERNS) { |value| options[:rail_pattern] = value }
           opts.on("--color-by MODE", %w[wire net]) { |value| options[:color_by] = value }
@@ -52,6 +54,14 @@ module Breadkit
         raise ArgumentError, "--diff requires OLD and NEW inputs" if options[:diff] && !second_input
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
+        if options[:theme_file]
+          custom = Theme.load(options[:theme_file])
+          options[:theme], options[:theme_colors] = custom.values_at(:base, :colors)
+        end
+        options[:font_css] = Theme.font(options[:font_file]) if options[:font_file]
+        if options.values_at(:theme_file, :font_file).any? && options[:view] != "breadboard"
+          raise ArgumentError, "custom themes and embedded fonts require breadboard view"
+        end
         raise ArgumentError, "--animate and --frame-delay require APNG output" if format != "apng" && options.values_at(:animate, :frame_delay).any?
         raise ArgumentError, "APNG cannot select a single --state or --step" if format == "apng" && options.values_at(:state, :step).any?
         validate_electrical_view_options(options, format) unless options[:view] == "breadboard"
@@ -88,7 +98,8 @@ module Breadkit
             annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
             interactive_layers: !step && %w[svg html].include?(format) && !options[:static] && !options[:layer],
             state: state, active_layer: options[:layer], focus: options[:focus],
-            highlight_net: options[:highlight_net], label_density: options[:label_density] }
+            highlight_net: options[:highlight_net], label_density: options[:label_density],
+            theme_colors: options[:theme_colors] || {}, font_css: options[:font_css] }
         end
         renderer = { "breadboard" => SvgRenderer, "netlist" => NetlistRenderer,
                      "schematic" => SchematicRenderer }.fetch(options[:view])
@@ -297,7 +308,8 @@ module Breadkit
         render_options = { crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
                            show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
                            rail_pattern: options[:rail_pattern], interactive_layers: !options[:static],
-                           label_density: options[:label_density] }
+                           label_density: options[:label_density], theme_colors: options[:theme_colors] || {},
+                           font_css: options[:font_css] }
         old_svg = SvgRenderer.new.render(before, **render_options, diff_wires: removed)
         new_svg = SvgRenderer.new.render(after, **render_options, diff_wires: added)
         html = diff_viewer(old_svg, new_svg, theme: options[:theme])

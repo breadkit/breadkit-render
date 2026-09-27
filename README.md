@@ -85,6 +85,7 @@ bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender circuit.bk.rb --view netlist --theme dark -o netlist.svg
 bkrender circuit.bk.rb --view schematic --theme dark -o schematic.svg
 bkrender circuit.bk.rb --label-density compact -o compact.svg
+bkrender circuit.bk.rb --theme-file palette.json --font-file ./typeface.woff2 -o branded.svg
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
@@ -95,6 +96,23 @@ Use `--label-density compact` for references only, or `none` to hide foreground
 component labels. `compact` is recommended for dense diagrams. Each SVG
 includes a text netlist in `<desc>` and a `<title>`
 for every board hole, including unused holes.
+
+A custom palette inherits every color from a built-in theme and overrides only
+the keys supplied in JSON:
+
+```json
+{
+  "base": "dark",
+  "colors": {
+    "board": "#17251f",
+    "text": "#f3f8f4",
+    "accent": "#9bd9b1"
+  }
+}
+```
+
+Colors must use six-digit hexadecimal notation. An embedded font makes a
+standalone SVG self-contained; use a font you have permission to redistribute.
 
 ## Netlist view
 
@@ -249,6 +267,8 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--view NAME` | `breadboard` | `breadboard`, `schematic` (symbols and net labels), or `netlist` (resolved net buses). |
 | `--scale N` | `2` | Image and PDF output scale. |
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
+| `--theme-file PATH` | none | Load a JSON palette with a `base` theme and selected `colors` overrides. Breadboard view only. |
+| `--font-file PATH` | none | Embed a TTF, OTF, WOFF, or WOFF2 font in the breadboard SVG. Maximum 5 MiB. |
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |
 | `--rail-pattern PATTERN` | board layout | Set rail polarity with `+--+`, `+-+-`, `-+-+`, or `-++-`. |
 | `--color-by MODE` | `wire` | Use declared wire colors or deterministic net colors. |
