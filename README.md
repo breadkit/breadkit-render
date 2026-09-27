@@ -242,6 +242,8 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
 - Occupied holes and connected holes have different markers. LED colors accept
   CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
   or connected hole in the SVG to see its hole ID and net.
+- `--annotations lint.json` draws numbered lint targets. Short-circuit
+  annotations trace their reported jumper paths, matching the wire geometry.
 - Custom part YAML can set `render.svg` to draw a body around the center of its
   placed pins. The renderer keeps the physical leads and pins visible.
 - `--state SW1` shows the selected switch as closed and uses that state's nets.

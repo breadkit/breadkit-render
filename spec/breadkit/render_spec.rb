@@ -289,6 +289,24 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(document.root.elements["g[@id='legend']"].elements["rect"].attributes["fill"]).to eq("#f2f5f2")
   end
 
+  it "highlights the actual targeted short-circuit wire route" do
+    wire = circuit.wires.first
+    annotation = { "rule" => "Electrical/ShortCircuit", "severity" => "error", "targets" => { "wires" => [wire.id] } }
+    document = REXML::Document.new(described_class.new.render(circuit, annotations: [annotation]))
+    source = REXML::XPath.first(document, "//g[@id='wires']//path[@data-ref='#{wire.id}']")
+    overlay = REXML::XPath.first(document, "//g[@id='annotations']//path[@data-short-path='#{wire.id}']")
+    expect(overlay).not_to be_nil
+    expect(overlay.attributes["d"]).to eq(source.attributes["d"])
+    expect(overlay.attributes["stroke-width"].to_f).to be > source.attributes["stroke-width"].to_f
+
+    annotation["state"] = "SW1"
+    open = REXML::Document.new(described_class.new.render(circuit, annotations: [annotation]))
+    expect(REXML::XPath.first(open, "//g[@id='annotations']//path[@data-short-path='#{wire.id}']")).to be_nil
+    closed_state = Breadkit::Render::StateSelection.resolve(circuit, "SW1")
+    closed = REXML::Document.new(described_class.new.render(circuit, annotations: [annotation], state: closed_state))
+    expect(REXML::XPath.first(closed, "//g[@id='annotations']//path[@data-short-path='#{wire.id}']")).not_to be_nil
+  end
+
   it "uses state-specific nets for annotation targets and wraps wide glyphs" do
     annotations = [{ "state" => "SW1", "message" => "MW😀漢" * 35, "targets" => { "nets" => ["VCC"] } }]
     document = REXML::Document.new(described_class.new.render(circuit, annotations: annotations))

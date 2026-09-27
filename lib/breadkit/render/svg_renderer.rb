@@ -821,17 +821,7 @@ module Breadkit
           chosen = @color_by == "net" ? wire_color(wire) : (wire.color || wire_color(wire))
           color = @theme == "print" ? "#222222" : render_color(chosen, "wire #{wire.id}") { wire_color(wire) }
           color = { "removed" => "#d94c48", "added" => "#23a86b" }.fetch(@diff_wires[wire.id], color)
-          path = if wire.route == "arc"
-            control_y = (py(from[1]) + py(to[1])) / 2.0 - 8
-            "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} Q #{fmt((px(from[0]) + px(to[0])) / 2)} #{fmt(control_y)} #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
-          elsif wire.route == "edge"
-            edge_route(wire, from, to)
-          elsif @wire_routing == "auto" && !offboard_component(wire.from) && !offboard_component(wire.to)
-            points = wire_route_points(wire, from, to)
-            "M #{points.map { |x, y| "#{fmt(px(x))} #{fmt(py(y))}" }.join(' L ')}"
-          else
-            "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} L #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
-          end
+          path = wire_path(wire, from, to)
           dash = if wire.dashed
             " stroke-dasharray=\"5 4\""
           elsif @theme == "print"
@@ -853,6 +843,20 @@ module Breadkit
           markers << layer_group(emphasis_group(dots.join, wire.id), wire.layer, alternative: alternative)
         end
         (casings + lines + markers).join
+      end
+
+      def wire_path(wire, from, to)
+        if wire.route == "arc"
+          control_y = (py(from[1]) + py(to[1])) / 2.0 - 8
+          "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} Q #{fmt((px(from[0]) + px(to[0])) / 2)} #{fmt(control_y)} #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
+        elsif wire.route == "edge"
+          edge_route(wire, from, to)
+        elsif @wire_routing == "auto" && !offboard_component(wire.from) && !offboard_component(wire.to)
+          points = wire_route_points(wire, from, to)
+          "M #{points.map { |x, y| "#{fmt(px(x))} #{fmt(py(y))}" }.join(' L ')}"
+        else
+          "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} L #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
+        end
       end
 
       def layer_names(value)
@@ -1066,6 +1070,14 @@ module Breadkit
               x, y = px(point[0]), py(point[1])
               anchor ||= [x, y]
               out << circle(x, y, 5, fill: "none", stroke: color, stroke_width: 1.5)
+              annotation_state = read(item, "state")
+              if read(item, "rule") == "Electrical/ShortCircuit" && @visible_wire_ids.include?(id) &&
+                  (annotation_state.nil? || annotation_state.to_s == @state&.name.to_s)
+                finish = endpoint_point(wire.to)
+                out << tag("path", d: wire_path(wire, point, finish), fill: "none", stroke: color,
+                           stroke_width: 5, stroke_linecap: "round", stroke_dasharray: "5 4", opacity: 0.85,
+                           data_short_path: id) if finish
+              end
             end
           end
           Array(read(targets, "pins")).each do |ref|
