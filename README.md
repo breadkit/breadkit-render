@@ -57,9 +57,10 @@ gem install breadkit-render -v 0.1.0
 bkrender circuit.bk.rb -o circuit.svg
 ```
 
-This README documents the newer, unreleased `main` branch. It currently depends
-on Breadkit core 0.2.0, which is also unreleased. To use these features now,
-check out both repositories as siblings:
+This README documents version 0.2.0 on the unreleased `main` branch. It depends
+on Breadkit core 0.2.0, which is also unreleased. The 0.2.0 gems cannot be
+installed from RubyGems yet. To use these features now, check out both
+repositories as siblings:
 
 ```sh
 mkdir breadkit-dev && cd breadkit-dev

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — Unreleased
 
 - Export printable assembly guides with bills of materials and staged diagrams.
 - Exclude nonphysical annotation wires from assembly guides and live reload watched HTML after successful changes.

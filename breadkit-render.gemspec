@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Yudai Takada"]
   spec.email = ["t.yudai92@gmail.com"]
 
-  spec.summary = "Render Breadkit circuits as SVG, PNG, and JPEG diagrams."
-  spec.description = "bkrender converts breadboard wiring described with the Breadkit DSL into deterministic diagrams."
+  spec.summary = "Render Breadkit circuits as SVG, raster, PDF, and HTML diagrams."
+  spec.description = "bkrender converts Breadkit circuit files into deterministic breadboard diagrams, animations, and assembly guides."
   spec.homepage = "https://github.com/breadkit/breadkit-render"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
