@@ -548,6 +548,9 @@ RSpec.describe Breadkit::Render::SvgRenderer do
       expect(group.elements.to_a("line")).to be_empty
       board = REXML::XPath.first(document, "//g[@id='board']/rect")
       card = group.elements["rect"]
+      expect(card.attributes["width"].to_f).to be >= 180
+      card_labels = group.elements.to_a("text").select { |node| node.text.match?(/Logical|Master|Right|LEFT_POS|LEFT_GND|RIGHT_POS|RIGHT_GND/) }
+      expect(card_labels.map { |node| node.attributes["font-size"].to_f }.min).to be >= 9
       expect(card.attributes["x"].to_f + card.attributes["width"].to_f).to be < board.attributes["x"].to_f
       expect(group.elements.to_a("circle").map { |circle| circle.attributes["data-pin"] }).to match_array(
         %w[PS1.LEFT_POS PS1.LEFT_GND PS1.RIGHT_POS PS1.RIGHT_GND]

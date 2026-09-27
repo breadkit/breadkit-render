@@ -631,8 +631,8 @@ module Breadkit
         xs = pins.map { |_pin, hole| hole.x }
         ys = pins.map { |_pin, hole| hole.y }
         board_left, board_right = @board_extents.fetch(:x)
-        width, height = 15.0, 8.3
-        x = xs.sum / xs.length.to_f <= (board_left + board_right) / 2.0 ? board_left - 17.5 : board_right + 2.5
+        width, height = 19.0, 11.0
+        x = xs.sum / xs.length.to_f <= (board_left + board_right) / 2.0 ? board_left - 21.5 : board_right + 2.5
         [x, (ys.min + ys.max) / 2.0 - height / 2, width, height]
       end
 
@@ -647,30 +647,30 @@ module Breadkit
                rect(px(x), py(y + height), px(width), px(height), rx: 3,
                     fill: @colors[:module_bg], stroke: @colors[:module_border], stroke_width: 1,
                     data_ref: component.ref)]
-        out << text(px(x + 0.6), py(y + height - 1.0), component.ref, "font-size" => 9,
+        out << text(px(x + 0.8), py(y + height - 1.4), component.ref, "font-size" => 13,
                     "font-weight" => 700, "fill" => @colors[:text])
-        out << text(px(x + 0.6), py(y + height - 1.8), "Logical pins · verify fit", "font-size" => 7,
+        out << text(px(x + 0.8), py(y + height - 2.5), "Logical pins · verify fit", "font-size" => 10,
                     "fill" => @colors[:label])
         master = read(component.attrs, "master")
         left = read(component.attrs, "left")
         right = read(component.attrs, "right")
         if master || left || right
           mode = ->(value) { { "v3_3" => "3.3 V", "v5" => "5 V", "off" => "OFF" }.fetch(value.to_s, value.to_s) }
-          out << text(px(x + 0.6), py(y + height - 2.55), "Master #{master.to_s.upcase} · Left #{mode.call(left)}", "font-size" => 6.2,
+          out << text(px(x + 0.8), py(y + height - 3.5), "Master #{master.to_s.upcase} · Left #{mode.call(left)}", "font-size" => 9.2,
                       "fill" => @colors[:text])
-          out << text(px(x + 0.6), py(y + height - 3.25), "Right #{mode.call(right)}", "font-size" => 6.2,
+          out << text(px(x + 0.8), py(y + height - 4.4), "Right #{mode.call(right)}", "font-size" => 9.2,
                       "fill" => @colors[:text])
         end
         pins.each_with_index do |(pin, hole), index|
           display = display_hole(hole)
           color = MODULE_PIN_COLORS.fetch(pin.role.to_s, @colors[:lead])
           short = rail_pin_label(pin, index)
-          out << circle(px(display.x), py(display.y), 5, fill: color, stroke: @colors[:module_border],
+          out << circle(px(display.x), py(display.y), 6, fill: color, stroke: @colors[:module_border],
                         stroke_width: 0.8, data_pin: "#{component.ref}.#{pin.name}")
-          out << text(px(display.x), py(display.y) + 1.7, short, "font-size" => 5.2,
+          out << text(px(display.x), py(display.y) + 2.2, short, "font-size" => 6.5,
                       "font-weight" => 700, "fill" => "#ffffff", "text-anchor" => "middle")
-          out << text(px(x + 0.6), py(y + height - 4.2 - index * 0.85),
-                      "#{short}  #{pin.name}  #{hole.id}", "font-size" => 7, "fill" => @colors[:text])
+          out << text(px(x + 0.8), py(y + height - 6.0 - index),
+                      "#{short}  #{pin.name}  #{hole.id}", "font-size" => 10, "fill" => @colors[:text])
         end
         %(<g data-rail-module="logical">#{out.join}</g>)
       end
