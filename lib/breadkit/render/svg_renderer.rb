@@ -57,9 +57,8 @@ module Breadkit
       }.freeze
 
       def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, diff_wires: {})
-        if circuit.respond_to?(:multi_board?) && circuit.multi_board?
-          raise ArgumentError, "multi-board breadboard rendering is not yet supported"
-        end
+        @multi_board = circuit.respond_to?(:multi_board?) && circuit.multi_board?
+        raise ArgumentError, "--rail-pattern is unavailable for multi-board circuits" if @multi_board && rail_pattern
 
         @circuit, @theme, @orientation, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme.to_s, orientation.to_s, show_nets, legend, color_by, annotations
         @state, @active_layer = state, active_layer&.to_s
@@ -124,7 +123,7 @@ module Breadkit
         else
           @nets_by_hole.keys.to_set
         end
-        @view_box = view_box(crop)
+        @view_box = view_box(@multi_board ? "none" : crop)
         @layer_controls_height = layer_controls_height unless @layers.empty?
         left, top, width, height = @view_box
         extra_height = legend_height
@@ -151,6 +150,7 @@ module Breadkit
         svg << "<g id=\"components\">#{components_svg}</g>"
         svg << "<g id=\"offboard\">#{offboard_svg}</g>"
         svg << "<g id=\"wires\">#{wires_svg}</g>"
+        svg << "<g id=\"component-labels\">#{component_labels_overlay_svg}</g>" if @multi_board
         svg << "<g id=\"labels\">#{labels_svg}</g>"
         svg << "<g id=\"nets\">#{nets_svg}</g><g id=\"annotations\">#{annotations_svg}</g>"
         svg << "</g>" if transform
@@ -195,6 +195,8 @@ module Breadkit
       end
 
       def rail_polarity(id)
+        return @circuit.board.rail_polarity(id) if @multi_board
+
         rail_definition(id)["polarity"]&.to_s || (id.end_with?("+", "-") ? id[-1] : nil)
       end
 
@@ -220,6 +222,8 @@ module Breadkit
       end
 
       def board_svg
+        return named_boards_svg if @multi_board
+
         x, y, width, height = board_bounds
         out = [rect(x, y, width, height, rx: 8, fill: @colors[:board], stroke: @colors[:border], stroke_width: 1)]
         ravine = Array(@circuit.board.definition.data.dig("terminal", "ravine_between"))
@@ -239,6 +243,39 @@ module Breadkit
           positions = holes.map { |hole| display_hole(hole) }
           first, last = positions.map { |hole| px(hole.x) }.minmax
           out << rect(first - 3, py(positions.first.y) - 3, last - first + 6, 6,
+                      rx: 3, fill: rail_color, opacity: 0.14, data_rail: rail_id)
+        end
+        out.join
+      end
+
+      def named_boards_svg
+        board = @circuit.board
+        out = board.boards.map do |name, definition|
+          holes = board.holes.values.select { |hole| hole.id.start_with?("#{name}.") }
+          xs, ys = holes.map { |hole| px(hole.x) }, holes.map { |hole| py(hole.y) }
+          x, y = xs.min - PITCH * 1.5, ys.min - PITCH * 1.5
+          width, height = xs.max - xs.min + PITCH * 3, ys.max - ys.min + PITCH * 3
+          plate = [rect(x, y, width, height, rx: 8, fill: @colors[:board], stroke: @colors[:border], stroke_width: 1)]
+          ravine = Array(definition.definition.data.dig("terminal", "ravine_between"))
+          rows = ravine.map { |row| holes.find { |hole| hole.row == row.to_s } }
+          if rows.length == 2 && rows.all?
+            groove_y = rows.sum { |hole| py(hole.y) } / rows.length
+            plate << rect(x + PITCH / 2, groove_y - PITCH, width - PITCH, PITCH * 2,
+                          rx: 2, fill: @colors[:groove])
+          end
+          plate << text(x + width - 17, y + 9, name, "font-size" => 8, "font-weight" => 700,
+                        "fill" => @colors[:text], "text-anchor" => "middle")
+          "<g data-board=\"#{escape(name)}\">#{plate.join}</g>"
+        end
+        board.strips.each do |id, ids|
+          next unless id.include?("rail:")
+
+          holes = ids.map { |hole_id| board.hole(hole_id) }
+          next if holes.empty?
+          rail_id = holes.first.rail
+          rail_color = { "+" => @colors[:positive], "-" => @colors[:negative] }.fetch(rail_polarity(rail_id), @colors[:label])
+          first, last = holes.map { |hole| px(hole.x) }.minmax
+          out << rect(first - 3, py(holes.first.y) - 3, last - first + 6, 6,
                       rx: 3, fill: rail_color, opacity: 0.14, data_rail: rail_id)
         end
         out.join
@@ -267,6 +304,8 @@ module Breadkit
       end
 
       def labels_svg
+        return named_board_labels_svg if @multi_board
+
         out = []
         number_y = @orientation == "portrait" ? py(-1) : py(@circuit.board.height)
         @circuit.board.definition.data.dig("terminal", "rows").each do |row|
@@ -283,6 +322,30 @@ module Breadkit
                       "fill" => @colors[:text], "text-anchor" => "middle")
         end
         out << rail_marks_svg if @rail_pattern
+        out.join
+      end
+
+      def named_board_labels_svg
+        out = []
+        @circuit.board.boards.each do |name, definition|
+          holes = @circuit.board.holes.values.select { |hole| hole.id.start_with?("#{name}.") }
+          terminal_holes = holes.select { |hole| hole.kind == :terminal }
+          left_x = terminal_holes.map(&:x).min
+          Array(definition.definition.data.dig("terminal", "rows")).each do |row|
+            hole = terminal_holes.find { |item| item.row == row.to_s }
+            out << text(px(left_x) - 7, py(hole.y), row, "font-size" => 8, "font-weight" => 500,
+                        "fill" => @colors[:label], "text-anchor" => "middle") if hole
+          end
+          number_y = @orientation == "portrait" ? py(-1) : py(definition.height)
+          (1..definition.width).each do |col|
+            next unless col == 1 || (col % 5).zero?
+
+            number_x = px(left_x + col - 1) + (@orientation == "portrait" ? 5 : 0)
+            out << text(number_x + (@orientation == "portrait" ? 3 : 0), number_y, col,
+                        "font-size" => @orientation == "portrait" ? 6 : 7, "font-weight" => 500,
+                        "fill" => @colors[:text], "text-anchor" => "middle")
+          end
+        end
         out.join
       end
 
@@ -317,8 +380,26 @@ module Breadkit
         out << rect(x - 12, y - 4, 24, 8, rx: 3, fill: @colors[:resistor_bg], stroke: @colors[:resistor_border], data_ref: component.ref)
         bands = resistor_bands(component.value, bands: component.attrs[:bands] || 4)
         bands.each_with_index { |color, index| out << rect(x - (bands.length == 5 ? 9 : 7) + index * 4, y - 4, 1.7, 8, fill: color) }
-        out << text(x, y - 7, "#{component.ref} #{component.value}", "font-size" => 5, "font-weight" => 500, "text-anchor" => "middle")
+        out << text(x, y - 7, "#{component.ref} #{component.value}", "font-size" => 5, "font-weight" => 500, "text-anchor" => "middle") unless @multi_board
         out.join
+      end
+
+      def component_labels_overlay_svg
+        @visible_components.filter_map do |component|
+          next unless component.part.data.dig("render", "shape") == "resistor"
+
+          holes = component.pins.values.filter_map { |pin| @circuit.board.hole(pin.hole_id) }
+          next if holes.empty?
+
+          x = (holes.map { |hole| px(hole.x) }.minmax.sum) / 2.0
+          y = (holes.map { |hole| py(hole.y) }.minmax.sum) / 2.0
+          label = "#{component.ref} #{component.value}"
+          width = [label.length * 3.1 + 6, 20].max
+          opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
+          body = rect(x - width / 2, y - 14, width, 9, rx: 2, fill: @colors[:board])
+          body += text(x, y - 7, label, "font-size" => 5, "font-weight" => 500, "text-anchor" => "middle")
+          layer_group("<g data-ref=\"#{escape(component.ref)}\"#{opacity}>#{body}</g>", read(component.attrs, "layer"))
+        end.join
       end
 
       def led_svg(component, pins, x, y)

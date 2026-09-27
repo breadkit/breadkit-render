@@ -115,6 +115,25 @@ works with breadboard SVG and image output; HTML, netlist view, diff,
 print templates, and annotations are unavailable. A wire to a later board-mounted
 component pin stays at that pin's physical hole until the component is placed.
 
+## Named boards
+
+Use a board name in each hole ID to place parts and wires across boards:
+
+```ruby
+board :mini, as: :B1
+board :mini, as: :B2
+supply :BAT, voltage: 5, plus: "B1.a1", minus: "B2.b5"
+resistor :R1, "330", pins: %w[B1.a1 B1.a3]
+led :D1, anode: "B2.a3", cathode: "B2.a5"
+wire "B1.b3", "B2.b3", color: :red
+```
+
+`bkrender circuit.bk.rb --orientation landscape -o circuit.svg` draws separate
+board plates and a jumper between their named holes. Portrait orientation
+stacks the plates. Both orientations keep board and wire positions stable
+across `--step` images. The breadboard and netlist views accept v2 JSON IR.
+`--rail-pattern` is unavailable for named-board circuits.
+
 ## Diagram controls
 
 - `--rail-pattern` assigns polarity to the four rails in portrait order:
