@@ -50,17 +50,16 @@ emitter connection. The 5 V layer is a visual alternative: remove the emitter's
 
 ## Quick start
 
-The published 0.1.0 release works with Ruby 3.3 or newer:
+Install the latest published release with Ruby 3.3 or newer:
 
 ```sh
-gem install breadkit-render -v 0.1.0
+gem install breadkit-render
 bkrender circuit.bk.rb -o circuit.svg
 ```
 
-This README documents version 0.2.0 on the unreleased `main` branch. It depends
-on Breadkit core 0.2.0, which is also unreleased. The 0.2.0 gems cannot be
-installed from RubyGems yet. To use these features now, check out both
-repositories as siblings:
+This README documents `main` at version 0.2.0, which requires Breadkit core
+0.2.x. If this version is ahead of the published gems, use both repositories
+as sibling checkouts to access the features below:
 
 ```sh
 mkdir breadkit-dev && cd breadkit-dev
