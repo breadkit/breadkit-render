@@ -92,9 +92,13 @@ controls such as `--layer`, `--rail-pattern`, and `--focus` are unavailable.
 
 ## Schematic view
 
-`--view schematic` draws each two-terminal component once with a circuit
-symbol. Its terminal wires join the resolved nets, and crossing wires use a
-bridge where they are not connected. This is an electrical view: board hole
+`--view schematic` draws each component once. Two-terminal parts use circuit
+symbols whose wires join the resolved nets; crossing wires use a bridge where
+they are not connected. ICs and modules use rectangular symbols with named
+pins. A pin's colored net label connects it to the bus or any other pin with
+the same label. Unconnected pins have muted, unlabeled stubs; their resolved
+net identity remains in the SVG terminal data. Bus rows appear where a
+two-terminal symbol attaches. This is an electrical view: board hole
 positions and physical jumper routes do not appear.
 
 For example, this powered LED path produces the diagram below:
@@ -113,10 +117,8 @@ led :D1, anode: "a3", cathode: "b5"
 </p>
 
 The view also accepts named multi-board circuits and v2 JSON IR. It supports
-SVG, PNG, JPEG, WebP, and PDF. Multi-pin ICs and modules are not supported yet;
-the command reports the first unsupported component by name. Use
-`--view netlist` for those circuits. HTML, assembly steps, diff, and
-breadboard-only controls are unavailable.
+SVG, PNG, JPEG, WebP, and PDF. HTML, assembly steps, diff, and breadboard-only
+controls are unavailable.
 
 ## Assembly steps
 
@@ -209,7 +211,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | --- | --- | --- |
 | `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.pdf` select the format. |
 | `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, `jpeg`, `webp`, or `pdf`. Conflicting extensions are errors. |
-| `--view NAME` | `breadboard` | `breadboard`, `schematic` (two-terminal circuit symbols), or `netlist` (resolved net buses). |
+| `--view NAME` | `breadboard` | `breadboard`, `schematic` (symbols and net labels), or `netlist` (resolved net buses). |
 | `--scale N` | `2` | Image and PDF output scale. |
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |

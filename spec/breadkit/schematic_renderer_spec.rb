@@ -68,16 +68,84 @@ RSpec.describe Breadkit::Render::SchematicRenderer do
     end
   end
 
-  it "rejects parts with more than two terminals and breadboard-only controls" do
-    load_source('board :mini; button :SW1, at: "e5"') do |_circuit, path, directory|
+  it "shows every resolved pin of a multi-pin IC and offboard module once" do
+    load_source(<<~RUBY) do |circuit, path, directory|
+      board :half
+      supply :USB, voltage: 5, plus: "a1", minus: "a3"
+      ic :U1, "NE555", at: "e20"
+      offboard :UNO, :arduino_uno
+      wire "U1.8", "b1"
+      wire "U1.1", "b3"
+      wire "UNO.D13", "U1.3"
+    RUBY
       output = File.join(directory, "schematic.svg")
-      expect { expect(Breadkit::Render::CLI.new.run([path, "--view", "schematic", "-o", output])).to eq(2) }
-        .to output(/schematic view supports two-terminal components; SW1 has 4 terminals/).to_stderr
+      expect(Breadkit::Render::CLI.new.run([path, "--view", "schematic", "-o", output])).to eq(0)
+      document = REXML::Document.new(File.read(output))
+      expect(REXML::XPath.match(document, "//g[@data-ref='U1'][@data-symbol='ic']").length).to eq(1)
+      expect(REXML::XPath.match(document, "//g[@data-ref='UNO'][@data-symbol='module']").length).to eq(1)
+      %w[U1 UNO].each do |ref|
+        circuit.components.fetch(ref).pins.each_key do |pin|
+          terminal = "#{ref}.#{pin}"
+          stubs = REXML::XPath.match(document, "//path[@data-terminal='#{terminal}']")
+          expect(stubs.length).to eq(1)
+          expect(stubs.first.attributes["data-net"]).to eq(circuit.net_of(terminal).name)
+        end
+      end
+      expect(REXML::XPath.first(document, "//text[@data-pin-label='U1.VCC']").text).to eq("VCC")
+      expect(REXML::XPath.first(document, "//text[@data-pin-net='UNO.D13']").text)
+        .to eq(circuit.net_of("UNO.D13").name)
+      expect(REXML::XPath.first(document, "//text[@data-pin-net='U1.OUT']").text)
+        .to eq(circuit.net_of("UNO.D13").name)
     end
+  end
+
+  it "rejects breadboard-only controls" do
     load_source(source) do |_circuit, path, directory|
       output = File.join(directory, "schematic.svg")
       expect { expect(Breadkit::Render::CLI.new.run([path, "--view", "schematic", "--rail-pattern", "+--+", "-o", output])).to eq(2) }
         .to output(/--rail-pattern is unavailable in schematic view/).to_stderr
+    end
+  end
+
+  it "omits empty bus rows and labels for isolated pins while retaining resolved net data" do
+    load_source(<<~RUBY) do |circuit, _path, _directory|
+      board :mini
+      offboard :UNO, :arduino_uno
+      resistor :R1, "330", pins: %w[a1 a3]
+      wire "UNO.D13", "b1"
+    RUBY
+      document = REXML::Document.new(described_class.new.render(circuit))
+      buses = REXML::XPath.match(document, "//g[@id='nets']/path[@data-net]")
+      expect(buses.map { |bus| bus.attributes["data-net"] }).to eq([circuit.net_of("R1.1").name,
+                                                              circuit.net_of("R1.2").name])
+      expect(REXML::XPath.first(document, "//text[@data-pin-net='UNO.D0']")).to be_nil
+      isolated = REXML::XPath.first(document, "//path[@data-terminal='UNO.D0']")
+      expect(isolated.attributes["data-net"]).to eq(circuit.net_of("UNO.D0").name)
+      expect(isolated.attributes["data-unconnected"]).to eq("true")
+      expect(document.to_s).to include("2 connected nets", "25 isolated")
+      expect(document.root.attributes["height"].to_i).to be < 800
+      block = REXML::XPath.first(document, "//g[@data-ref='UNO']/rect")
+      expect(block.attributes["y"].to_i).to be < 250
+    end
+  end
+
+  it "uses the selected switch state for every multi-pin terminal" do
+    load_source('board :half; button :SW1, at: "e10"') do |circuit, _path, _directory|
+      closed = circuit.states("all").find { |state| state.name == "SW1" }
+      open_svg = REXML::Document.new(described_class.new.render(circuit))
+      closed_svg = REXML::Document.new(described_class.new.render(circuit, state: closed))
+      %w[1 2 3 4].each do |pin|
+        terminal = "SW1.#{pin}"
+        path = REXML::XPath.first(closed_svg, "//path[@data-terminal='#{terminal}']")
+        expect(path.attributes["data-net"]).to eq(circuit.net_of(terminal, closed).name)
+      end
+      open_first = REXML::XPath.first(open_svg, "//path[@data-terminal='SW1.1']")
+      open_third = REXML::XPath.first(open_svg, "//path[@data-terminal='SW1.3']")
+      closed_first = REXML::XPath.first(closed_svg, "//path[@data-terminal='SW1.1']")
+      closed_third = REXML::XPath.first(closed_svg, "//path[@data-terminal='SW1.3']")
+      expect(open_first.attributes["data-net"]).not_to eq(open_third.attributes["data-net"])
+      expect(closed_first.attributes["data-net"]).to eq(closed_third.attributes["data-net"])
+      expect(closed_svg.root.attributes["data-state"]).to eq("SW1")
     end
   end
 
