@@ -42,7 +42,9 @@ RSpec.describe Breadkit::Render::SchematicRenderer do
         expect(path.attributes["data-net"]).to eq(circuit.net_of(terminal).name)
       end
       expect(document.to_s).to include("VCC", "GND", "330", "5 V")
-      expect(REXML::XPath.first(document, "//text[@data-net-label='GND']").attributes["text-anchor"]).to eq("end")
+      gnd_label = REXML::XPath.first(document, "//text[@data-net-label='GND']")
+      expect(gnd_label.attributes["text-anchor"]).to eq("end")
+      expect(gnd_label.attributes["data-net"]).to eq("GND")
       expect(REXML::XPath.match(document, "//g[@id='devices']/g[@data-ref='R1']").length).to eq(1)
     end
   end

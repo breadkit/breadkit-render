@@ -271,21 +271,32 @@ module Breadkit
       def html_viewer(svg, theme:, circuit: nil, render_options: nil)
         background = theme == "dark" ? "#151d19" : "#f1f4f1"
         foreground = theme == "dark" ? "#ecf3ee" : "#203029"
-        diagram = svg.sub(/\A<\?xml[^>]*\?>\s*/, "")
-        state_control = ""
         states = circuit&.states("all") || []
+        selected = render_options&.dig(:state)&.name.to_s
+        diagram = viewer_diagrams(svg, states, selected) { |state| SvgRenderer.new.render(circuit, **render_options.merge(state: state)) }
+        schematic = if circuit
+          initial = SchematicRenderer.new.render(circuit, theme: theme, state: render_options[:state])
+          viewer_diagrams(initial, states, selected) { |state| SchematicRenderer.new.render(circuit, theme: theme, state: state) }
+        end
+        state_control = ""
         if states.length > 1
-          selected = render_options[:state]&.name.to_s
-          diagram = states.map do |state|
-            state_svg = state.name.to_s == selected ? svg : SvgRenderer.new.render(circuit, **render_options.merge(state: state))
-            state_svg.sub(/\A<\?xml[^>]*\?>\s*/, "")
-                     .sub("<svg ", "<svg data-viewer-state=\"#{CGI.escapeHTML(state.name.to_s)}\"#{' data-active' if state.name.to_s == selected} ")
-          end.join
           options = states.map do |state|
             name = state.name.to_s
             "<option value=\"#{CGI.escapeHTML(name)}\"#{' selected' if name == selected}>#{CGI.escapeHTML(name.empty? ? 'Open' : name)}</option>"
           end.join
           state_control = "<label for=\"state\">State</label><select id=\"state\" aria-label=\"Switch state\">#{options}</select>"
+        end
+        schematic_panel = if schematic
+          <<~PANEL
+            <section class="diagram-panel" aria-labelledby="schematic-heading">
+              <div class="panel-header"><h2 id="schematic-heading">Schematic</h2><div class="zoom-controls">
+                <button type="button" data-pane="schematic" data-action="in" aria-label="Zoom in schematic">+</button>
+                <button type="button" data-pane="schematic" data-action="out" aria-label="Zoom out schematic">−</button>
+                <button type="button" data-pane="schematic" data-action="fit" aria-label="Fit schematic">Fit</button>
+              </div></div>
+              <div id="schematic-viewport" class="viewport" tabindex="0" aria-label="Schematic diagram. Arrow keys pan; plus and minus zoom."><div id="schematic-scene" class="scene">#{schematic}</div></div>
+            </section>
+          PANEL
         end
         <<~HTML
           <!doctype html>
@@ -295,55 +306,104 @@ module Breadkit
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Breadkit diagram</title>
             <style>
-              *{box-sizing:border-box}body{margin:0;background:#{background};color:#{foreground};font:14px system-ui,sans-serif}
-              #viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;cursor:grab}#viewport.dragging{cursor:grabbing}
-              #scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform-origin:0 0;will-change:transform}
-              #scene svg{display:block;width:100%;height:100%;overflow:hidden}#scene.ready{inset:auto;left:0;top:0;display:block;overflow:hidden}#scene.ready svg{width:auto;height:auto;max-width:none}
-              #scene svg[data-viewer-state]:not([data-active]){display:none}
+              *{box-sizing:border-box}body{margin:0;height:100dvh;display:flex;flex-direction:column;background:#{background};color:#{foreground};font:14px system-ui,sans-serif}
+              #diagrams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px;flex:1;min-height:0}
+              #diagrams.single{grid-template-columns:1fr}.diagram-panel{display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid currentColor;border-radius:8px;overflow:hidden}
+              .panel-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px;border-bottom:1px solid currentColor}
+              h2{margin:0;font-size:14px;font-weight:600}.zoom-controls{display:flex;gap:2px}
+              .viewport{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab}.viewport.dragging{cursor:grabbing}.viewport:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
+              .scene{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}.scene svg{display:block;max-width:none}
+              .scene svg[data-viewer-state]:not([data-active]){display:none}
               .net-muted{opacity:.18!important}
-              #toolbar{position:fixed;z-index:2;top:16px;right:16px;display:flex;gap:4px;padding:4px;border:1px solid currentColor;border-radius:8px;background:#{background}}
+              #toolbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid currentColor;background:#{background}}
               button{color:inherit;background:transparent;border:0;border-radius:4px;min-width:36px;height:32px;font:inherit;cursor:pointer}button:hover,button:focus-visible{outline:2px solid currentColor}
-              #toolbar label{align-self:center;padding:0 4px}select{color:inherit;background:#{background};border:1px solid currentColor;border-radius:4px;font:inherit}
+              select{color:inherit;background:#{background};border:1px solid currentColor;border-radius:4px;font:inherit;max-width:220px;padding:4px}
+              .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+              [data-switch]{cursor:pointer}[data-switch]:focus-visible{filter:drop-shadow(0 0 3px currentColor)}
+              @media(max-width:850px){body{height:auto;min-height:100dvh}#diagrams.dual{grid-template-columns:1fr;flex:none}.dual .diagram-panel{height:68vh}}
             </style>
           </head>
           <body>
-            <div id="viewport" aria-label="Interactive breadboard diagram"><div id="scene">#{diagram}</div></div>
             <div id="toolbar" role="toolbar" aria-label="Diagram controls">
               #{state_control}
-              <button type="button" data-action="in" aria-label="Zoom in">+</button>
-              <button type="button" data-action="out" aria-label="Zoom out">−</button>
-              <button type="button" data-action="fit" aria-label="Fit diagram">Fit</button>
+              <label for="net">Net</label><select id="net" aria-label="Highlight net"><option value="">All nets</option></select>
             </div>
+            <main id="diagrams" class="#{schematic ? 'dual' : 'single'}">
+              <section class="diagram-panel" aria-labelledby="breadboard-heading">
+                <div class="panel-header"><h2 id="breadboard-heading">Breadboard</h2><div class="zoom-controls">
+                  <button type="button" data-pane="board" data-action="in" aria-label="Zoom in breadboard">+</button>
+                  <button type="button" data-pane="board" data-action="out" aria-label="Zoom out breadboard">−</button>
+                  <button type="button" data-pane="board" data-action="fit" aria-label="Fit breadboard">Fit</button>
+                </div></div>
+                <div id="viewport" class="viewport" tabindex="0" aria-label="Interactive breadboard diagram. Arrow keys pan; plus and minus zoom."><div id="scene" class="scene">#{diagram}</div></div>
+              </section>
+              #{schematic_panel}
+            </main>
+            <span id="viewer-status" class="sr-only" role="status"></span>
             <script>
-              const viewport=document.getElementById('viewport'),scene=document.getElementById('scene'),stateSelect=document.getElementById('state');
-              let svg=scene.querySelector('[data-active]')||scene.querySelector('svg');
-              let scale=1,x=0,y=0,dragging=false,lastX=0,lastY=0,activeNet=null;
-              const paint=()=>{scene.style.transform=`translate(${x}px,${y}px) scale(${scale})`};
-              const fit=()=>{scene.classList.add('ready');const w=Number(svg.getAttribute('width')),h=Number(svg.getAttribute('height'));
-                scene.style.width=`${w}px`;scene.style.height=`${h}px`;
-                scale=Math.min((viewport.clientWidth-32)/w,(viewport.clientHeight-32)/h);x=(viewport.clientWidth-w*scale)/2;y=(viewport.clientHeight-h*scale)/2;paint()};
-              const zoom=(factor,cx,cy)=>{const next=Math.max(.1,Math.min(12,scale*factor));x=cx-(cx-x)*next/scale;y=cy-(cy-y)*next/scale;scale=next;paint()};
-              viewport.addEventListener('wheel',event=>{event.preventDefault();const box=viewport.getBoundingClientRect();zoom(event.deltaY<0?1.15:1/1.15,event.clientX-box.left,event.clientY-box.top)},{passive:false});
-              viewport.addEventListener('pointerdown',event=>{if(event.target.closest('[data-layer-button],[data-switch]'))return;dragging=true;lastX=event.clientX;lastY=event.clientY;viewport.classList.add('dragging');viewport.setPointerCapture(event.pointerId)});
-              viewport.addEventListener('pointermove',event=>{if(dragging){x+=event.clientX-lastX;y+=event.clientY-lastY;lastX=event.clientX;lastY=event.clientY;paint();return}
-                const net=event.target.closest('[data-net]')?.getAttribute('data-net')||null;if(net===activeNet)return;activeNet=net;
-                scene.querySelectorAll('[data-net]').forEach(node=>node.classList.toggle('net-muted',!!net&&node.getAttribute('data-net')!==net))});
-              const endDrag=()=>{dragging=false;viewport.classList.remove('dragging')};viewport.addEventListener('pointerup',endDrag);viewport.addEventListener('pointercancel',endDrag);
-              viewport.addEventListener('pointerleave',()=>{if(dragging)return;activeNet=null;scene.querySelectorAll('.net-muted').forEach(node=>node.classList.remove('net-muted'))});
-              const selectState=name=>{const next=[...scene.querySelectorAll('[data-viewer-state]')].find(node=>node.getAttribute('data-viewer-state')===name);
-                if(!next)return;svg.removeAttribute('data-active');svg=next;svg.setAttribute('data-active','');stateSelect.value=name;
-                activeNet=null;scene.querySelectorAll('.net-muted').forEach(node=>node.classList.remove('net-muted'));fit()};
-              if(stateSelect){const switchRefs=[...new Set([...svg.querySelectorAll('[data-switch]')].map(node=>node.getAttribute('data-switch')))];
+              const stateSelect=document.getElementById('state'),netSelect=document.getElementById('net'),status=document.getElementById('viewer-status');
+              let selectedNet='',hoverNet='';
+              const panes={};
+              const makePane=(key,viewportId,sceneId)=>{
+                const viewport=document.getElementById(viewportId),scene=document.getElementById(sceneId);
+                let svg=scene.querySelector('[data-active]')||scene.querySelector('svg'),scale=1,x=0,y=0,dragging=false,lastX=0,lastY=0;
+                const paint=()=>{scene.style.transform=`translate(${x}px,${y}px) scale(${scale})`};
+                const fit=()=>{const w=Number(svg.getAttribute('width')),h=Number(svg.getAttribute('height'));
+                  scene.style.width=`${w}px`;scene.style.height=`${h}px`;
+                  scale=Math.min((viewport.clientWidth-32)/w,(viewport.clientHeight-32)/h);x=(viewport.clientWidth-w*scale)/2;y=(viewport.clientHeight-h*scale)/2;paint()};
+                const zoom=(factor,cx,cy)=>{const next=Math.max(.1,Math.min(12,scale*factor));x=cx-(cx-x)*next/scale;y=cy-(cy-y)*next/scale;scale=next;paint()};
+                const showState=name=>{const next=[...scene.querySelectorAll('[data-viewer-state]')].find(node=>node.getAttribute('data-viewer-state')===name);
+                  if(!next)return;svg.removeAttribute('data-active');svg=next;svg.setAttribute('data-active','');fit()};
+                viewport.addEventListener('wheel',event=>{event.preventDefault();const box=viewport.getBoundingClientRect();zoom(event.deltaY<0?1.15:1/1.15,event.clientX-box.left,event.clientY-box.top)},{passive:false});
+                viewport.addEventListener('pointerdown',event=>{if(event.target.closest('[data-layer-button],[data-switch]'))return;dragging=true;lastX=event.clientX;lastY=event.clientY;viewport.classList.add('dragging');viewport.setPointerCapture(event.pointerId)});
+                viewport.addEventListener('pointermove',event=>{if(dragging){x+=event.clientX-lastX;y+=event.clientY-lastY;lastX=event.clientX;lastY=event.clientY;paint();return}
+                  const net=event.target.closest('[data-net]')?.getAttribute('data-net')||'';if(net===hoverNet)return;hoverNet=net;paintNet()});
+                const endDrag=()=>{dragging=false;viewport.classList.remove('dragging')};viewport.addEventListener('pointerup',endDrag);viewport.addEventListener('pointercancel',endDrag);
+                viewport.addEventListener('pointerleave',()=>{if(dragging)return;hoverNet='';paintNet()});
+                viewport.addEventListener('keydown',event=>{if(event.defaultPrevented)return;
+                  if(event.key==='+'||event.key==='=')zoom(1.25,viewport.clientWidth/2,viewport.clientHeight/2);
+                  else if(event.key==='-')zoom(.8,viewport.clientWidth/2,viewport.clientHeight/2);
+                  else if(event.key==='0')fit();
+                  else if(event.key==='ArrowLeft')x+=24;else if(event.key==='ArrowRight')x-=24;
+                  else if(event.key==='ArrowUp')y+=24;else if(event.key==='ArrowDown')y-=24;else return;
+                  paint();event.preventDefault()});
+                panes[key]={scene,active:()=>svg,fit,zoom,showState};
+              };
+              makePane('board','viewport','scene');
+              if(document.getElementById('schematic-viewport'))makePane('schematic','schematic-viewport','schematic-scene');
+              const paintNet=()=>{const net=hoverNet||selectedNet;
+                Object.values(panes).forEach(pane=>pane.active().querySelectorAll('[data-net]').forEach(node=>node.classList.toggle('net-muted',!!net&&node.getAttribute('data-net')!==net)))};
+              const populateNets=()=>{const names=[...new Set(Object.values(panes).flatMap(pane=>[...pane.active().querySelectorAll('[data-net]')].map(node=>node.getAttribute('data-net'))))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+                netSelect.replaceChildren(new Option('All nets',''),...names.map(name=>new Option(name,name)));selectedNet='';netSelect.value='';paintNet()};
+              const selectState=name=>{Object.values(panes).forEach(pane=>pane.showState(name));stateSelect.value=name;hoverNet='';populateNets();
+                status.textContent=`${name||'Open'} switch state selected`};
+              if(stateSelect){const board=panes.board.scene;
+                board.querySelectorAll('[data-switch]').forEach(node=>{node.setAttribute('tabindex','0');node.setAttribute('role','button');node.setAttribute('aria-label',`Toggle ${node.getAttribute('data-switch')}`)});
+                const switchRefs=[...new Set([...panes.board.active().querySelectorAll('[data-switch]')].map(node=>node.getAttribute('data-switch')))];
+                const toggleSwitch=ref=>{const active=new Set(stateSelect.value.split(',').filter(Boolean));active.has(ref)?active.delete(ref):active.add(ref);
+                  selectState(switchRefs.filter(name=>active.has(name)).join(','));[...panes.board.active().querySelectorAll('[data-switch]')].find(node=>node.getAttribute('data-switch')===ref)?.focus()};
                 stateSelect.addEventListener('change',()=>selectState(stateSelect.value));
-                scene.addEventListener('click',event=>{const button=event.target.closest('[data-switch]');if(!button)return;
-                  const active=new Set(stateSelect.value.split(',').filter(Boolean)),ref=button.getAttribute('data-switch');
-                  active.has(ref)?active.delete(ref):active.add(ref);selectState(switchRefs.filter(name=>active.has(name)).join(','))})}
-              document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>{const action=button.getAttribute('data-action');if(action==='fit')fit();else zoom(action==='in'?1.25:.8,viewport.clientWidth/2,viewport.clientHeight/2)}));
-              window.addEventListener('resize',fit);fit();
+                board.addEventListener('click',event=>{const button=event.target.closest('[data-switch]');if(button)toggleSwitch(button.getAttribute('data-switch'))});
+                board.addEventListener('keydown',event=>{const button=event.target.closest('[data-switch]');if(!button||(event.key!=='Enter'&&event.key!==' '))return;
+                  event.preventDefault();toggleSwitch(button.getAttribute('data-switch'))})}
+              netSelect.addEventListener('change',()=>{selectedNet=netSelect.value;paintNet();status.textContent=selectedNet?`${selectedNet} highlighted in both diagrams`:'All nets shown'});
+              document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>{const pane=panes[button.getAttribute('data-pane')],action=button.getAttribute('data-action');
+                if(action==='fit')pane.fit();else pane.zoom(action==='in'?1.25:.8,pane.scene.parentElement.clientWidth/2,pane.scene.parentElement.clientHeight/2)}));
+              window.addEventListener('resize',()=>Object.values(panes).forEach(pane=>pane.fit()));populateNets();Object.values(panes).forEach(pane=>pane.fit());
             </script>
           </body>
           </html>
         HTML
+      end
+
+      def viewer_diagrams(original, states, selected)
+        return original.sub(/\A<\?xml[^>]*\?>\s*/, "") if states.length < 2
+
+        states.map do |state|
+          state_svg = state.name.to_s == selected ? original : yield(state)
+          state_svg.sub(/\A<\?xml[^>]*\?>\s*/, "")
+                   .sub("<svg ", "<svg data-viewer-state=\"#{CGI.escapeHTML(state.name.to_s)}\"#{' data-active' if state.name.to_s == selected} ")
+        end.join
       end
     end
   end

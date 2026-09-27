@@ -158,7 +158,7 @@ module Breadkit
         crossings.each { |x| path << " H #{x - 9} Q #{x} #{y - 12} #{x + 9} #{y}" }
         path << " H #{x2}"
         %(<path d="#{path}" fill="none" stroke="#{accent}" stroke-width="2.5" stroke-linecap="round" data-net="#{xml(net.name)}" data-crossovers="#{crossings.length}"/>) +
-          %(<text x="#{x1 - 12}" y="#{y - 15}" text-anchor="end" fill="#{colors[:text]}" font-size="13" font-weight="700" data-net-label="#{xml(net.name)}">#{xml(net.name)}</text>)
+          %(<text x="#{x1 - 12}" y="#{y - 15}" text-anchor="end" fill="#{colors[:text]}" font-size="13" font-weight="700" data-net="#{xml(net.name)}" data-net-label="#{xml(net.name)}">#{xml(net.name)}</text>)
       end
 
       def device_svg(device, net_colors, nets, colors)

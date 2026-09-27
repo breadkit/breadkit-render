@@ -137,8 +137,9 @@ led :D1, anode: "a3", cathode: "b5"
 </p>
 
 The view also accepts named multi-board circuits and v2 JSON IR. It supports
-SVG, PNG, JPEG, WebP, and PDF. HTML, assembly steps, diff, and breadboard-only
-controls are unavailable.
+SVG, PNG, JPEG, WebP, and PDF. Assembly steps, diff, and breadboard-only
+controls are unavailable. Use the default breadboard view with `--format html`
+to open a paired breadboard and schematic viewer.
 
 ## Assembly steps
 
@@ -208,9 +209,12 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
   `--layer "2 I2C"` keeps one named layer in static SVG, PNG, JPEG, WebP, or PDF output.
 - `--focus R1` dims other components and unrelated wires.
   `--highlight-net VCC` emphasizes the selected net and its connected parts.
-- HTML output provides a standalone viewer with zoom, pan, layer controls, and
-  net highlighting on hover. Use the State menu or click a switch to see its
-  open and closed wiring states.
+- HTML output pairs the breadboard and schematic with independent zoom and pan.
+  Hover a net in either diagram or choose it from the Net menu to highlight
+  the same resolved net in both. The State menu updates both diagrams; click a
+  breadboard switch or focus it and press Enter or Space to change its state.
+  Focus either diagram and use arrow keys to pan, `+`/`-` to zoom, or `0` to fit.
+  Breadboard layer controls remain available.
 - `--diff OLD NEW` creates a two-panel HTML viewer. Removed wires are red in
   the old view and added wires are green in the new view; matching wires use
   their normal colors.

@@ -38,7 +38,7 @@ module Breadkit
                      switch_bg: "#ece7dd", switch_border: "#504c45", switch_button: "#c7c0b5", switch_button_border: "#6c655b",
                      text: "#25312b", label: "#627168", positive: "#cf5955", negative: "#71847e", negative_wire: "#315ea8", lead: "#68766f",
                      component_bg: "#e8eeea", component_border: "#aab7af", module_bg: "#f1efe8",
-                     module_border: "#888780", muted: "#92918b", accent: "#1D6B45" },
+                     module_border: "#888780", muted: "#66665f", accent: "#1D6B45" },
         "dark" => { board: "#202a27", border: "#52625b", groove: "#141c19", hole: "#718178", used_hole: "#d4e2d9",
                     connected_hole: "#9bab9e", resistor_bg: "#6b6248", resistor_border: "#c9ac73",
                     diode_bg: "#4b5550", diode_border: "#aab7af", diode_mark: "#dde6df",
@@ -46,7 +46,7 @@ module Breadkit
                     switch_bg: "#3d4540", switch_border: "#819188", switch_button: "#58665d", switch_button_border: "#a4b6a9",
                     text: "#e8efeb", label: "#c0cdc5", positive: "#ed7168", negative: "#99aaa4", negative_wire: "#76a9f2", lead: "#91a199",
                     component_bg: "#2d3935", component_border: "#607168", module_bg: "#343a3d",
-                    module_border: "#687176", muted: "#889095", accent: "#8fbea1" },
+                    module_border: "#687176", muted: "#b1bfc2", accent: "#8fbea1" },
         "print" => { board: "#ffffff", border: "#555555", groove: "#eeeeee", hole: "#aaaaaa", used_hole: "#333333",
                      connected_hole: "#777777", resistor_bg: "#dddddd", resistor_border: "#555555",
                      diode_bg: "#555555", diode_border: "#333333", diode_mark: "#ffffff",
@@ -54,7 +54,7 @@ module Breadkit
                      switch_bg: "#eeeeee", switch_border: "#444444", switch_button: "#cccccc", switch_button_border: "#444444",
                      text: "#222222", label: "#444444", positive: "#333333", negative: "#777777", negative_wire: "#555555", lead: "#333333",
                      component_bg: "#f4f4f4", component_border: "#555555", module_bg: "#f4f4f4",
-                     module_border: "#666666", muted: "#777777", accent: "#333333" }
+                     module_border: "#666666", muted: "#666666", accent: "#333333" }
       }.freeze
 
       def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, label_density: "full", diff_wires: {})

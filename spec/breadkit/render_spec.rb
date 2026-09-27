@@ -523,6 +523,21 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(connected.elements["title"].text).to include("b12")
   end
 
+  it "keeps muted module labels readable in every theme" do
+    luminance = lambda do |hex|
+      channels = hex.delete_prefix("#").scan(/../).map do |pair|
+        value = pair.to_i(16) / 255.0
+        value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055)**2.4
+      end
+      channels.zip([0.2126, 0.7152, 0.0722]).sum { |channel, weight| channel * weight }
+    end
+    described_class::COLORS.each_value do |palette|
+      foreground, background = [palette[:muted], palette[:module_bg]].map(&luminance)
+      ratio = ([foreground, background].max + 0.05) / ([foreground, background].min + 0.05)
+      expect(ratio).to be >= 4.5
+    end
+  end
+
   it "uses theme colors and supports named or hexadecimal LED colors" do
     builder = Breadkit::DSL::Builder.new
     builder.instance_eval("board :half\nresistor :R1, '330', pins: %w[a1 a5]\nled :D1, color: :purple, anode: 'b7', cathode: 'b8'",
@@ -700,7 +715,7 @@ RSpec.describe Breadkit::Render::CLI do
       output = File.join(directory, "circuit.html")
       expect(described_class.new.run([input, "--theme", "dark", "-o", output])).to eq(0)
       html = File.read(output)
-      expect(html).to include("<!doctype html>", "id=\"viewport\"", "data-net=\"VCC\"", "aria-label=\"Zoom in\"")
+      expect(html).to include("<!doctype html>", "id=\"viewport\"", "data-net=\"VCC\"", "aria-label=\"Zoom in breadboard\"")
       expect(html).not_to include("<?xml")
     end
   end
@@ -711,11 +726,25 @@ RSpec.describe Breadkit::Render::CLI do
       File.write(input, 'board :half; button :SW1, at: "e10"; button :SW2, at: "e15"')
       expect(described_class.new.run([input, "-o", output])).to eq(0)
       html = File.read(output)
-      expect(html.scan(/data-viewer-state=/).length).to eq(4)
+      expect(html.scan(/data-viewer-state=/).length).to eq(8)
       expect(html).to include('aria-label="Switch state"', 'data-switch="SW1"', 'data-switch="SW2"')
       expect(html).to include('data-viewer-state="SW1,SW2"', 'data-state="SW1,SW2"')
       expect(described_class.new.run([input, "--state", "SW1", "-o", output])).to eq(0)
       expect(File.read(output)).to include('<option value="SW1" selected>SW1</option>', 'data-viewer-state="SW1" data-active')
+    end
+  end
+
+  it "pairs state-aware breadboard and schematic diagrams with a shared net control" do
+    Dir.mktmpdir do |directory|
+      input, output = File.join(directory, "paired.bk.rb"), File.join(directory, "paired.html")
+      File.write(input, 'board :mini; button :SW1, at: "e5"; resistor :R1, "330", pins: %w[a8 a10]; wire "SW1.1", "R1.1"')
+      expect(described_class.new.run([input, "-o", output])).to eq(0)
+      html = File.read(output)
+      expect(html).to include('id="viewport"', 'id="schematic-viewport"', 'id="net"', 'aria-label="Highlight net"')
+      expect(html.scan(/data-viewer-state="SW1"/).length).to eq(2)
+      expect(html).to include('data-view="schematic"', 'data-terminal="R1.1"', 'data-switch="SW1"')
+      expect(html).to include('aria-label="Zoom in breadboard"', 'aria-label="Zoom in schematic"')
+      expect(html).to include("setAttribute('tabindex','0')", "event.key!=='Enter'&&event.key!==' '")
     end
   end
 
