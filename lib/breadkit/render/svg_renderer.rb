@@ -57,13 +57,16 @@ module Breadkit
                      module_border: "#666666", muted: "#666666", accent: "#333333" }
       }.freeze
 
-      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, label_density: "full", diff_wires: {}, theme_colors: {}, font_css: nil)
+      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, label_density: "full", diff_wires: {}, theme_colors: {}, font_css: nil, wire_routing: "declared", wire_style: "raised")
         @multi_board = circuit.respond_to?(:multi_board?) && circuit.multi_board?
         raise ArgumentError, "--rail-pattern is unavailable for multi-board circuits" if @multi_board && rail_pattern
         raise ArgumentError, "unknown label density: #{label_density}" unless LABEL_DENSITIES.include?(label_density)
+        raise ArgumentError, "unknown wire routing: #{wire_routing}" unless %w[declared auto].include?(wire_routing)
+        raise ArgumentError, "unknown wire style: #{wire_style}" unless %w[raised flat].include?(wire_style)
 
         @circuit, @theme, @orientation, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme.to_s, orientation.to_s, show_nets, legend, color_by, annotations
         @label_density = label_density
+        @wire_routing, @wire_style = wire_routing, wire_style
         @state, @active_layer = state, active_layer&.to_s
         @diff_wires = diff_wires
         @nets = circuit.nets(state)
@@ -113,9 +116,11 @@ module Breadkit
         @visible_wires = circuit.wires.select { |wire| visible_in_layer?(wire.layer) }
         @visible_wire_ids = @visible_wires.map(&:id).to_set
         @visible_components = circuit.components.values.select { |component| visible_in_layer?(read(component.attrs, "layer")) }
+        @auto_routes = {}
         @layer_controls_height = 0
         @rail_pattern = rail_pattern&.to_s
         configure_rail_pattern
+        @auto_router = OrthogonalRouter.new(auto_obstacles) if @wire_routing == "auto"
 
         @colors = COLORS.fetch(@theme, COLORS.fetch("light")).merge(theme_colors)
         @font_css = font_css
@@ -750,6 +755,9 @@ module Breadkit
             "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} Q #{fmt((px(from[0]) + px(to[0])) / 2)} #{fmt(control_y)} #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
           elsif wire.route == "edge"
             edge_route(wire, from, to)
+          elsif @wire_routing == "auto" && !offboard_component(wire.from) && !offboard_component(wire.to)
+            points = wire_route_points(wire, from, to)
+            "M #{points.map { |x, y| "#{fmt(px(x))} #{fmt(py(y))}" }.join(' L ')}"
           else
             "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} L #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
           end
@@ -760,10 +768,10 @@ module Breadkit
           else
             ""
           end
-          casing = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{@colors[:board]}\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+          casing = @wire_style == "flat" ? "" : "<path d=\"#{path}\" fill=\"none\" stroke=\"#{@colors[:board]}\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
           net_attr = @nets_by_member[wire.id] ? " data-net=\"#{escape(@nets_by_member[wire.id].name)}\"" : ""
           diff_attr = @diff_wires[wire.id] ? " data-diff=\"#{@diff_wires[wire.id]}\"" : ""
-          wire_svg = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{escape(color)}\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" data-ref=\"#{escape(wire.id)}\"#{net_attr}#{diff_attr}#{dash}/>"
+          wire_svg = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{escape(color)}\" stroke-width=\"#{@wire_style == 'flat' ? '1.8' : '2.4'}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" data-ref=\"#{escape(wire.id)}\"#{net_attr}#{diff_attr}#{dash}/>"
           dots = [from, to].uniq.map do |x, y|
             circle(px(x), py(y), 2.8, fill: color, stroke: @colors[:board], stroke_width: 1.2,
                    data_wire: wire.id)
@@ -1185,8 +1193,38 @@ module Breadkit
           edge_route_points(wire, from, to)
         elsif wire.route == "arc"
           [from, [(from[0] + to[0]) / 2.0, (from[1] + to[1]) / 2.0 + 0.8], to]
+        elsif @wire_routing == "auto" && !offboard_component(wire.from) && !offboard_component(wire.to)
+          @auto_routes[wire.id] ||= @auto_router.route(from, to)
         else
           [from, to]
+        end
+      end
+
+      def auto_obstacles
+        @visible_components.filter_map do |component|
+          next if component.part.placement == "offboard"
+          pins = component.pins.values.filter_map { |pin| @circuit.board.hole(pin.hole_id) }
+          next if pins.empty?
+
+          xs, ys = pins.map { |hole| display_hole(hole).x }, pins.map { |hole| display_hole(hole).y }
+          shape = component.part.data.dig("render", "shape")
+          if shape == "module"
+            x, y, width, height = module_bounds(component, pins.map { |hole| [nil, hole] })
+            [x, y, x + width, y + height]
+          elsif (size = component.part.data.dig("render", "size_mm"))
+            width, height = size.map { |value| value.to_f / 2.54 }
+            center_x, center_y = (xs.min + xs.max) / 2.0, (ys.min + ys.max) / 2.0
+            [center_x - width / 2, center_y - height / 2, center_x + width / 2, center_y + height / 2]
+          elsif shape == "dip"
+            [xs.min - 0.4, (ys.min + ys.max) / 2.0 - 0.4, xs.max + 0.4, (ys.min + ys.max) / 2.0 + 0.4]
+          else
+            half_width, half_height = { "resistor" => [1.2, 0.4], "led_5mm" => [0.55, 0.55],
+                                        "tact_switch" => [1.2, 1.0], "potentiometer" => [1.2, 0.8],
+                                        "diode" => [0.7, 0.3], "rgb_led_5mm" => [0.7, 0.7],
+                                        "to92" => [0.8, 0.6] }.fetch(shape, [0.9, 0.5])
+            center_x, center_y = (xs.min + xs.max) / 2.0, (ys.min + ys.max) / 2.0
+            [center_x - half_width, center_y - half_height, center_x + half_width, center_y + half_height]
+          end
         end
       end
 

@@ -905,6 +905,10 @@ RSpec.describe Breadkit::Render::CLI do
     expect(rasterizer.rasterize('<svg width="20" height="30"/>', format: "png", backend: "chrome")).to eq("PNG")
     expect { rasterizer.send(:chrome_dimensions, '<svg/>', 2.0) }.to raise_error(Breadkit::Render::Error, /dimensions/)
     expect(rasterizer.send(:chrome_dimensions, '<svg width="20" height="30"/>', 2.0)).to eq([40, 60])
+    expect { rasterizer.send(:chrome_dimensions, '<svg width="10000" height="10000"/>', 1.0) }
+      .to raise_error(Breadkit::Render::Error, /pixels/)
+    expect { Breadkit::Render::Rasterizer.new.send(:chrome, '<svg width="20" height="30"/>', "png", 2.0, "black", 90, 60) }
+      .to raise_error(Breadkit::Render::Error, /only an opaque white background/)
   end
 
   it "stops external raster commands after the requested timeout" do

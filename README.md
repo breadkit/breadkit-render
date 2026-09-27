@@ -85,6 +85,7 @@ bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender circuit.bk.rb --view netlist --theme dark -o netlist.svg
 bkrender circuit.bk.rb --view schematic --theme dark -o schematic.svg
 bkrender circuit.bk.rb --label-density compact -o compact.svg
+bkrender circuit.bk.rb --wire-routing auto --wire-style flat -o flat-jumpers.svg
 bkrender circuit.bk.rb --theme-file palette.json --font-file ./typeface.woff2 -o branded.svg
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
@@ -219,6 +220,11 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
   `-+-+`, or `-++-`; connected wires move with their rail.
 - `--orientation landscape` gives a wide view. `--crop auto` keeps the
   diagram focused on used rows; `--crop none` shows the full board.
+- `--wire-routing auto` routes straight on-board wires at right angles around
+  placed component bodies. Declared arc and edge routes keep their chosen
+  geometry. It keeps the original endpoint holes and prefers separate tracks
+  where two automatic routes would overlap. `--wire-style flat` draws thinner
+  board-level jumpers without the raised casing.
 - Circuit `layer:` values group wires and components into interactive SVG
   views. `route: :edge` keeps long wires around the outside of the board.
 - Offboard modules use their own pin definitions. Pin `type:` values such as
@@ -275,6 +281,8 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--rail-pattern PATTERN` | board layout | Set rail polarity with `+--+`, `+-+-`, `-+-+`, or `-++-`. |
 | `--color-by MODE` | `wire` | Use declared wire colors or deterministic net colors. |
 | `--label-density MODE` | `full` | Breadboard foreground labels: `full` (reference and value), `compact` (reference only), or `none` (hidden). |
+| `--wire-routing MODE` | `declared` | `declared` or `auto` for on-board straight wires. |
+| `--wire-style MODE` | `raised` | `raised` or `flat` jumper appearance. |
 | `--show-nets` / `--legend` | off | Add net labels or a circuit legend. |
 | `--crop MODE` | `auto` | Crop to circuit content or show the full board with `none`. |
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |

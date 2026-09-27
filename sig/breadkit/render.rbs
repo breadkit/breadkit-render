@@ -22,7 +22,11 @@ module Breadkit
         ?focus: String?,
         ?highlight_net: String?,
         ?label_density: String,
-        ?diff_wires: Hash[String, String]
+        ?diff_wires: Hash[String, String],
+        ?theme_colors: Hash[Symbol, String],
+        ?font_css: String?,
+        ?wire_routing: String,
+        ?wire_style: String
       ) -> String
     end
 

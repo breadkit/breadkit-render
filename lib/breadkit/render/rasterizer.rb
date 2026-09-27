@@ -73,7 +73,9 @@ module Breadkit
         stdout
       end
 
-      def chrome(svg, _format, scale, _background, _quality, timeout)
+      def chrome(svg, _format, scale, background, _quality, timeout)
+        raise Error, "Chrome PNG supports only an opaque white background" unless background == "white"
+
         width, height = chrome_dimensions(svg, scale)
         Dir.mktmpdir("breadkit-chrome-") do |dir|
           html_path = File.join(dir, "image.html")
@@ -123,6 +125,7 @@ module Breadkit
 
         dimensions = match.captures.map { |value| (value.to_f * scale).round }
         raise Error, "Chrome dimensions must be 1 to 16384 pixels" unless dimensions.all? { |value| value.between?(1, 16_384) }
+        raise Error, "Chrome image exceeds 25 million pixels" if dimensions.inject(:*) > 25_000_000
 
         dimensions
       end
