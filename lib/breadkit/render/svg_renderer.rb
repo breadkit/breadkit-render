@@ -255,12 +255,7 @@ module Breadkit
           next unless id.start_with?("rail:")
           holes = ids.map { |hole_id| @circuit.board.hole(hole_id) }
           next if holes.empty?
-          rail_id = holes.first.rail
-          rail_color = { "+" => @colors[:positive], "-" => @colors[:negative] }.fetch(rail_polarity(rail_id), @colors[:label])
-          positions = holes.map { |hole| display_hole(hole) }
-          first, last = positions.map { |hole| px(hole.x) }.minmax
-          out << rect(first - 3, py(positions.first.y) - 3, last - first + 6, 6,
-                      rx: 3, fill: rail_color, opacity: 0.14, data_rail: rail_id)
+          out << rail_strip_svg(holes)
         end
         out.join
       end
@@ -289,13 +284,24 @@ module Breadkit
 
           holes = ids.map { |hole_id| board.hole(hole_id) }
           next if holes.empty?
-          rail_id = holes.first.rail
-          rail_color = { "+" => @colors[:positive], "-" => @colors[:negative] }.fetch(rail_polarity(rail_id), @colors[:label])
-          first, last = holes.map { |hole| px(hole.x) }.minmax
-          out << rect(first - 3, py(holes.first.y) - 3, last - first + 6, 6,
-                      rx: 3, fill: rail_color, opacity: 0.14, data_rail: rail_id)
+          out << rail_strip_svg(holes)
         end
         out.join
+      end
+
+      def rail_strip_svg(holes)
+        rail_id = holes.first.rail
+        color = { "+" => @colors[:positive], "-" => @colors[:negative] }.fetch(rail_polarity(rail_id), @colors[:label])
+        positions = holes.map { |hole| display_hole(hole) }
+        left, right = positions.map { |hole| px(hole.x) }.minmax
+        top, bottom = positions.map { |hole| py(hole.y) }.minmax
+        if bottom - top > right - left
+          rect((left + right) / 2 - 3, top - 3, 6, bottom - top + 6,
+               rx: 3, fill: color, opacity: 0.14, data_rail: rail_id)
+        else
+          rect(left - 3, (top + bottom) / 2 - 3, right - left + 6, 6,
+               rx: 3, fill: color, opacity: 0.14, data_rail: rail_id)
+        end
       end
 
       def holes_svg

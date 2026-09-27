@@ -6,6 +6,7 @@
 - Exclude nonphysical annotation wires from assembly guides and live reload watched HTML after successful changes.
 - Highlight the exact wire routes reported by short-circuit annotations.
 - Show DIP functional pin names in SVG hover titles and optional printed legends.
+- Draw custom left and right rail strips vertically and center rails horizontally, including named boards.
 - Show rail-mounted parts as logical edge pin maps at their declared rail holes.
 - Allow validated custom color palettes and embedded fonts in breadboard output.
 - Resolve named switch states directly and reject HTML viewers that exceed the 256-state budget.

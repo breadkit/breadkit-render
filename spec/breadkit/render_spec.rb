@@ -178,6 +178,35 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(REXML::XPath.first(document, "//g[@id='board']").elements.to_a("rect").length).to eq(2)
   end
 
+  it "draws vertical rail strips for single and named boards" do
+    definition = Breadkit::BoardDef.new(
+      "id" => "vertical", "terminal" => { "columns" => 3, "rows" => %w[a b c d],
+                                           "groups" => [%w[a b], %w[c d]], "ravine_between" => %w[b c] },
+      "rails" => [{ "id" => "L+", "side" => "left", "order" => 0, "polarity" => "+" },
+                  { "id" => "R-", "side" => "right", "order" => 0, "polarity" => "-" },
+                  { "id" => "MID", "side" => "center", "order" => 0, "polarity" => "+" }],
+      "rail_layout" => { "holes" => 3, "segments" => [[1, 3]], "start_row" => 1 }
+    )
+    board = Breadkit::Board.new(definition)
+    [board, Breadkit::BoardSet.new("A" => board, "B" => board)].each do |layout|
+      circuit = Breadkit::Circuit.new(title: nil, board: layout, components: {}, wires: [], supplies: [], labels: [],
+                                      expectations: [], lint_disables: [], diagnostics: [])
+      document = REXML::Document.new(described_class.new.render(circuit))
+      strips = REXML::XPath.match(document, "//g[@id='board']/rect[@data-rail]")
+      expect(strips.length).to eq(layout.is_a?(Breadkit::BoardSet) ? 6 : 3)
+      vertical = strips.reject { |strip| strip.attributes["data-rail"].end_with?("MID") }
+      vertical.each do |strip|
+        expect(strip.attributes["width"].to_f).to be_within(0.01).of(6)
+        expect(strip.attributes["height"].to_f).to be > 6
+      end
+      center = strips.select { |strip| strip.attributes["data-rail"].end_with?("MID") }
+      center.each do |strip|
+        expect(strip.attributes["width"].to_f).to be > 6
+        expect(strip.attributes["height"].to_f).to be_within(0.01).of(6)
+      end
+    end
+  end
+
   it "renders custom row and rail wire endpoints through the CLI" do
     Dir.mktmpdir do |directory|
       definition = {
