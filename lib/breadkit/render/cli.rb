@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "optparse"
+require "cgi/escape"
 
 module Breadkit
   module Render
@@ -24,6 +25,7 @@ module Breadkit
           opts.on("--layer NAME") { |value| options[:layer] = value }
           opts.on("--focus REF") { |value| options[:focus] = value }
           opts.on("--highlight-net NAME") { |value| options[:highlight_net] = value }
+          opts.on("--diff") { options[:diff] = true }
           opts.on("--backend NAME", %w[auto rsvg vips magick]) { |value| options[:backend] = value }
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
@@ -36,10 +38,13 @@ module Breadkit
         parser.parse!(argv)
         input = argv.shift
         raise ArgumentError, "input file required\n#{parser}" unless input
+        second_input = argv.shift if options[:diff]
+        raise ArgumentError, "--diff requires OLD and NEW inputs" if options[:diff] && !second_input
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
         raise ArgumentError, "--background is only supported for JPEG" if options[:background] && format != "jpeg"
         raise ArgumentError, "cannot write binary image data to a terminal; use -o PATH" if !%w[svg html].include?(format) && !options[:output] && $stdout.tty?
+        return render_diff(input, second_input, options, format) if options[:diff]
         circuit = Breadkit.load(input)
         circuit.diagnostics.each do |item|
           location = [item.location&.path, item.location&.line].compact.join(":")
@@ -82,7 +87,66 @@ module Breadkit
         if options[:format] && from_path && options[:format] != from_path
           raise ArgumentError, "--format conflicts with output extension"
         end
-        options[:format] || from_path || "svg"
+        options[:format] || from_path || (options[:diff] ? "html" : "svg")
+      end
+
+      def render_diff(before_path, after_path, options, format)
+        raise ArgumentError, "--diff requires HTML output" unless format == "html"
+        raise ArgumentError, "--diff does not support annotations, state, layer, or focus selection" if options.values_at(:annotations, :state, :layer, :focus, :highlight_net).any?
+
+        before, after = [before_path, after_path].map { |path| Breadkit.load(path) }
+        [before, after].zip([before_path, after_path]).each do |circuit, path|
+          circuit.diagnostics.each { |item| warn "#{path}: #{item.severity || 'error'}: #{item.message}" }
+        end
+        return 1 if !options[:force] && [before, after].any? { |circuit| circuit.diagnostics.any? { |item| !%w[warning info].include?(item.severity) } }
+
+        removed = unmatched_wires(before, after).to_h { |id| [id, "removed"] }
+        added = unmatched_wires(after, before).to_h { |id| [id, "added"] }
+        render_options = { crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
+                           show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
+                           rail_pattern: options[:rail_pattern], interactive_layers: !options[:static] }
+        old_svg = SvgRenderer.new.render(before, **render_options, diff_wires: removed)
+        new_svg = SvgRenderer.new.render(after, **render_options, diff_wires: added)
+        html = diff_viewer(old_svg, new_svg, theme: options[:theme])
+        options[:output] ? File.binwrite(options[:output], html) : $stdout.write(html)
+        0
+      end
+
+      def unmatched_wires(first, second)
+        remaining = second.wires.map { |wire| wire_signature(wire) }.tally
+        first.wires.filter_map do |wire|
+          signature = wire_signature(wire)
+          if remaining.fetch(signature, 0).positive?
+            remaining[signature] -= 1
+            nil
+          else
+            wire.id
+          end
+        end
+      end
+
+      def wire_signature(wire)
+        [*([wire.from, wire.to].sort), wire.color, wire.route, wire.layer, wire.electrical, wire.dashed]
+      end
+
+      def diff_viewer(old_svg, new_svg, theme:)
+        background = theme == "dark" ? "#151d19" : "#f1f4f1"
+        foreground = theme == "dark" ? "#ecf3ee" : "#203029"
+        before = CGI.escapeHTML(html_viewer(old_svg, theme: theme))
+        after = CGI.escapeHTML(html_viewer(new_svg, theme: theme))
+        <<~HTML
+          <!doctype html>
+          <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Breadkit wiring diff</title><style>
+          *{box-sizing:border-box}body{margin:0;background:#{background};color:#{foreground};font:14px system-ui,sans-serif}
+          main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px}section{min-width:0}
+          h2{margin:0 0 8px;font-size:14px;font-weight:600}iframe{width:100%;height:calc(100vh - 48px);border:1px solid currentColor;border-radius:8px}
+          @media(max-width:700px){main{grid-template-columns:1fr}iframe{height:70vh}}
+          </style></head><body><main>
+          <section><h2>Before · removed wires in red</h2><iframe title="Before" sandbox="allow-scripts" srcdoc="#{before}"></iframe></section>
+          <section><h2>After · added wires in green</h2><iframe title="After" sandbox="allow-scripts" srcdoc="#{after}"></iframe></section>
+          </main></body></html>
+        HTML
       end
 
       def read_annotations(path, input)

@@ -531,6 +531,19 @@ RSpec.describe Breadkit::Render::CLI do
     end
   end
 
+  it "renders changed wires in a side-by-side diff viewer" do
+    Dir.mktmpdir do |directory|
+      before = File.join(directory, "before.bk.rb")
+      after = File.join(directory, "after.bk.rb")
+      output = File.join(directory, "diff.html")
+      File.write(before, 'board :half; wire "a1", "a2"')
+      File.write(after, 'board :half; wire "a3", "a4"')
+      expect(described_class.new.run(["--diff", before, after, "-o", output])).to eq(0)
+      html = File.read(output)
+      expect(html).to include("Before", "After", "data-diff=&quot;removed&quot;", "data-diff=&quot;added&quot;")
+    end
+  end
+
   it "passes the selected rail pattern through to SVG output" do
     input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
     Dir.mktmpdir do |directory|

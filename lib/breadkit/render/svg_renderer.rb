@@ -56,9 +56,10 @@ module Breadkit
                      module_border: "#666666", muted: "#777777", accent: "#333333" }
       }.freeze
 
-      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil)
+      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, diff_wires: {})
         @circuit, @theme, @orientation, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme.to_s, orientation.to_s, show_nets, legend, color_by, annotations
         @state, @active_layer = state, active_layer&.to_s
+        @diff_wires = diff_wires
         @nets = circuit.nets(state)
         @focus_ref = focus&.to_s
         raise ArgumentError, "unknown component: #{@focus_ref}" if @focus_ref && !circuit.components.key?(@focus_ref)
@@ -546,6 +547,7 @@ module Breadkit
           from, to = endpoint_point(wire.from), endpoint_point(wire.to)
           next unless from && to
           color = @theme == "print" ? "#222222" : render_color(wire.color || wire_color(wire), "wire #{wire.id}") { wire_color(wire) }
+          color = { "removed" => "#d94c48", "added" => "#23a86b" }.fetch(@diff_wires[wire.id], color)
           path = if wire.route == "arc"
             control_y = (py(from[1]) + py(to[1])) / 2.0 - 8
             "M #{fmt(px(from[0]))} #{fmt(py(from[1]))} Q #{fmt((px(from[0]) + px(to[0])) / 2)} #{fmt(control_y)} #{fmt(px(to[0]))} #{fmt(py(to[1]))}"
@@ -563,7 +565,8 @@ module Breadkit
           end
           casing = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{@colors[:board]}\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
           net_attr = @nets_by_member[wire.id] ? " data-net=\"#{escape(@nets_by_member[wire.id].name)}\"" : ""
-          wire_svg = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{escape(color)}\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" data-ref=\"#{escape(wire.id)}\"#{net_attr}#{dash}/>"
+          diff_attr = @diff_wires[wire.id] ? " data-diff=\"#{@diff_wires[wire.id]}\"" : ""
+          wire_svg = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{escape(color)}\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" data-ref=\"#{escape(wire.id)}\"#{net_attr}#{diff_attr}#{dash}/>"
           dots = [from, to].uniq.map do |x, y|
             circle(px(x), py(y), 2.8, fill: color, stroke: @colors[:board], stroke_width: 1.2,
                    data_wire: wire.id)

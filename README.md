@@ -63,6 +63,7 @@ Choose a theme, add net labels, or export a raster image:
 bkrender circuit.bk.rb -o circuit.svg --theme dark --show-nets --legend
 bkrender circuit.bk.rb -o circuit.png --scale 3
 bkrender circuit.bk.rb -o circuit.html --theme dark
+bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
 
@@ -91,6 +92,9 @@ PNG and JPEG need a raster backend; SVG works without one.
   `--highlight-net VCC` emphasizes the selected net and its connected parts.
 - HTML output provides a standalone viewer with zoom, pan, layer controls, and
   net highlighting on hover.
+- `--diff OLD NEW` creates a two-panel HTML viewer. Removed wires are red in
+  the old view and added wires are green in the new view; matching wires use
+  their normal colors.
 
 The demo was generated with:
 
@@ -117,6 +121,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--layer NAME` | all layers | Render one named layer, including in PNG and JPEG output. |
 | `--focus REF` | none | Emphasize one component and its connected wires. |
 | `--highlight-net NAME` | none | Emphasize one net and its connected components. |
+| `--diff` | off | Compare two circuit files in a standalone HTML viewer. |
 | `--backend NAME` | `auto` | Use `rsvg`, `vips`, or `magick` for raster output. |
 | `--background COLOR` | white | Set the JPEG background with a CSS name, `#RGB`, or `#RRGGBB`; PNG and SVG reject it. |
 | `--quality N` | `90` | JPEG quality. |

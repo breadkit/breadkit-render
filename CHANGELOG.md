@@ -12,6 +12,7 @@
 - Draw model-specific seven-segment displays and RGB LEDs from the expanded core part catalog.
 - Add `--focus` and `--highlight-net` to emphasize selected components and nets.
 - Add a standalone HTML viewer with zoom, pan, layer controls, and net hover.
+- Add `--diff OLD NEW` with colored added and removed wires in a two-panel HTML viewer.
 
 ## 0.1.0 — 2026-09-27
 
