@@ -643,31 +643,42 @@ RSpec.describe Breadkit::Render::CLI do
       .to eq(2)
   end
 
-  it "writes PDF and WebP using output extensions" do
+  it "writes PDF using its output extension when librsvg is installed" do
+    skip "rsvg-convert unavailable" unless Breadkit::Render::Rasterizer.new.send(:supports?, "rsvg", "pdf")
+
     input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
     Dir.mktmpdir do |directory|
       pdf = File.join(directory, "diagram.pdf")
-      webp = File.join(directory, "diagram.webp")
       expect(described_class.new.run([input, "-o", pdf])).to eq(0)
       expect(File.binread(pdf)).to start_with("%PDF-".b)
+    end
+  end
+
+  it "writes WebP using its output extension when a converter is installed" do
+    rasterizer = Breadkit::Render::Rasterizer.new
+    skip "WebP converter unavailable" unless %w[vips magick].any? { |backend| rasterizer.send(:supports?, backend, "webp") }
+
+    input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    Dir.mktmpdir do |directory|
+      webp = File.join(directory, "diagram.webp")
       expect(described_class.new.run([input, "-o", webp])).to eq(0)
       expect(File.binread(webp).byteslice(0, 4)).to eq("RIFF")
       expect(File.binread(webp).byteslice(8, 4)).to eq("WEBP")
     end
-  rescue Breadkit::Render::Error => e
-    skip e.message
   end
 
   it "writes a full-board PDF with physical hole spacing for printing" do
     input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    expect(described_class.new.run([input, "--print-template", "-o", "board.png"])).to eq(2)
+    expect(described_class.new.send(:print_dimensions, '<svg width="100.00" height="200.00" viewBox="0 0 100 200">'))
+      .to include('width="25.40mm" height="50.80mm"')
+    skip "rsvg-convert unavailable" unless Breadkit::Render::Rasterizer.new.send(:supports?, "rsvg", "pdf")
+
     Dir.mktmpdir do |directory|
       pdf = File.join(directory, "board.pdf")
       expect(described_class.new.run([input, "--print-template", "-o", pdf])).to eq(0)
       expect(File.binread(pdf)).to start_with("%PDF-".b)
-      expect(described_class.new.run([input, "--print-template", "-o", File.join(directory, "board.png")])).to eq(2)
     end
-    expect(described_class.new.send(:print_dimensions, '<svg width="100.00" height="200.00" viewBox="0 0 100 200">'))
-      .to include('width="25.40mm" height="50.80mm"')
   end
 
   it "rasterizes to PNG and JPEG when optional system backends are installed" do
