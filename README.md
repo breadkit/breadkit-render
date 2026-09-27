@@ -79,6 +79,8 @@ PNG and JPEG need a raster backend; SVG works without one.
 - Offboard modules use their own pin definitions. Pin `type:` values such as
   `power`, `ground`, `clock`, and `data` mark each connection. Resistors use
   four color bands by default; `bands: 5` selects five.
+- The built-in `sc56_11ewa` seven-segment display and `wp154a4sureqbfzgc`
+  RGB LED have dedicated diagram shapes.
 - Occupied holes and connected holes have different markers. LED colors accept
   CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
   or connected hole in the SVG to see its hole ID and net.

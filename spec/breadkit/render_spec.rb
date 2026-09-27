@@ -14,6 +14,16 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(described_class.new.render(circuit, legend: true, show_nets: true)).to eq(svg)
   end
 
+  it "draws model-specific seven-segment and RGB LED bodies" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :full; part :SEG1, :sc56_11ewa, at: "b1"; part :RGB1, :wp154a4sureqbfzgc, pins: %w[a15 a16 a17 a18]', "displays.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    expect(diagram.diagnostics.select { |item| item.severity == "error" }).to be_empty
+    document = REXML::Document.new(described_class.new.render(diagram))
+    expect(REXML::XPath.match(document, "//g[@data-ref='SEG1']//*[@data-segment]").length).to eq(8)
+    expect(REXML::XPath.match(document, "//g[@data-ref='RGB1']//*[@data-channel]").map { |node| node.attributes["data-channel"] }).to eq(%w[R G B])
+  end
+
   it "adds a bounded legend with each net name and representative wire color" do
     svg = described_class.new.render(circuit, legend: true)
     document = REXML::Document.new(svg)

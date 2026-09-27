@@ -9,6 +9,7 @@
 - Reduce SVG hole markup with reusable shapes and show the hole ID and net on occupied or connected hole hover.
 - Add `--state` and `--layer` for selected switch states and static layer output; hide markers and net labels from omitted layers.
 - Limit external raster conversion time with `--render-timeout`.
+- Draw model-specific seven-segment displays and RGB LEDs from the expanded core part catalog.
 
 ## 0.1.0 — 2026-09-27
 

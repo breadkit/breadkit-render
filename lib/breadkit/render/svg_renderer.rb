@@ -285,6 +285,8 @@ module Breadkit
           when "dip" then dip_svg(component, pins)
           when "module" then module_svg(component, pins)
           when "tact_switch" then switch_svg(component, pins, center_x, center_y)
+          when "seven_segment" then seven_segment_svg(component, pins, center_x, center_y)
+          when "rgb_led_5mm" then rgb_led_svg(component, pins, center_x, center_y)
           else generic_svg(component, pins, center_x, center_y)
           end
           body = "<g data-ref=\"#{escape(component.ref)}\">#{body}</g>"
@@ -420,6 +422,34 @@ module Breadkit
         out = [lead_lines(pins, x, y)]
         out << rect(x - 9, y - 5, 18, 10, rx: 2, fill: @colors[:component_bg], stroke: @colors[:component_border], data_ref: component.ref)
         out << text(x, y + 1.5, component.ref, "font-size" => 4.5, "font-weight" => 500, "text-anchor" => "middle")
+        out.join
+      end
+
+      def seven_segment_svg(component, pins, x, y)
+        out = [lead_lines(pins, x, y)]
+        out << rect(x - 13, y - 23, 26, 46, rx: 2, fill: @colors[:component_bg],
+                    stroke: @colors[:component_border], data_ref: component.ref)
+        out << rect(x - 9, y - 19, 18, 38, rx: 1, fill: "#201c20")
+        segments = {
+          "A" => [x - 6, y - 16, 12, 2], "G" => [x - 6, y - 1, 12, 2], "D" => [x - 6, y + 14, 12, 2],
+          "F" => [x - 8, y - 14, 2, 12], "B" => [x + 6, y - 14, 2, 12],
+          "E" => [x - 8, y + 2, 2, 12], "C" => [x + 6, y + 2, 2, 12]
+        }
+        segments.each do |name, (left, top, width, height)|
+          out << rect(left, top, width, height, rx: 0.5, fill: "#d96960", opacity: 0.45, data_segment: name)
+        end
+        out << circle(x + 6, y + 16, 1, fill: "#d96960", opacity: 0.45, data_segment: "DP")
+        out << text(x, y - 26, component.ref, "font-size" => 5, "text-anchor" => "middle")
+        out.join
+      end
+
+      def rgb_led_svg(component, pins, x, y)
+        out = [lead_lines(pins, x, y)]
+        out << circle(x, y, 7, fill: @colors[:component_bg], stroke: @colors[:component_border], data_ref: component.ref)
+        { "R" => [-3.3, "#e35d59"], "G" => [0, "#66c786"], "B" => [3.3, "#6a9df0"] }.each do |channel, (offset, color)|
+          out << circle(x + offset, y, 2.4, fill: color, opacity: 0.75, data_channel: channel)
+        end
+        out << text(x, y - 10, component.ref, "font-size" => 5, "text-anchor" => "middle")
         out.join
       end
 
