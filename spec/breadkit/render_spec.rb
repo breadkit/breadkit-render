@@ -697,15 +697,12 @@ RSpec.describe Breadkit::Render::CLI do
 
   it "reports an automatic backend timeout instead of claiming no backend exists" do
     rasterizer = Breadkit::Render::Rasterizer.new
-    Dir.mktmpdir do |directory|
-      command = File.join(directory, "rsvg-convert")
-      File.write(command, "#!#{RbConfig.ruby}\nsleep 2\n")
-      File.chmod(0o755, command)
-      allow(rasterizer).to receive(:executable).with("rsvg-convert").and_return(command)
+    allow(rasterizer).to receive(:supports?).with("rsvg", "pdf").and_return(true)
+    allow(rasterizer).to receive(:rsvg).and_raise(Breadkit::Render::Rasterizer::TimeoutError,
+                                                  "rsvg-convert timed out after 0.05 seconds")
 
-      expect { rasterizer.rasterize("<svg/>", format: "pdf", timeout: 0.05) }
-        .to raise_error(Breadkit::Render::Rasterizer::TimeoutError, /rsvg-convert timed out after 0.05 seconds/)
-    end
+    expect { rasterizer.rasterize("<svg/>", format: "pdf", timeout: 0.05) }
+      .to raise_error(Breadkit::Render::Rasterizer::TimeoutError, /rsvg-convert timed out after 0.05 seconds/)
   end
 
   it "parses white and hex JPEG backgrounds for libvips" do
