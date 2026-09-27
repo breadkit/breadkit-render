@@ -150,6 +150,17 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect { REXML::Document.new(svg) }.not_to raise_error
   end
 
+  it "places board-mounted pin annotations at the resolved hole" do
+    annotation = [{ "targets" => { "pins" => ["D1.A"] }, "message" => "Check LED polarity" }]
+    document = REXML::Document.new(described_class.new.render(circuit, annotations: annotation))
+    marker = REXML::XPath.first(document, "//g[@id='annotations']/circle[@data-pin='D1.A']")
+    hole = circuit.board.hole(circuit.components.fetch("D1").pin("A").hole_id)
+
+    expect(marker).not_to be_nil
+    expect(marker.attributes["cx"].to_f).to be_within(0.01).of(hole.x * 10)
+    expect(marker.attributes["cy"].to_f).to be_within(0.01).of((circuit.board.height - 1 - hole.y) * 10)
+  end
+
   it "places numbered badges at targets and wraps long legend messages" do
     message = "Check the connected power net and follow every marked hole before applying power. " * 4
     annotations = [{ "severity" => "error", "message" => message, "targets" => { "nets" => ["VCC"] } },
@@ -452,10 +463,20 @@ RSpec.describe Breadkit::Render::CLI do
     Dir.mktmpdir do |directory|
       input, output = File.join(directory, "layers.bk.rb"), File.join(directory, "layers.svg")
       File.write(input, 'board :half; button :SW1, at: "e10"; wire "a1", "a2", layer: "Power"; wire "a3", "a4", layer: "Signal"')
-      expect(described_class.new.run([input, "--state", "SW1", "--layer", "Power", "-o", output])).to eq(0)
+      expect(described_class.new.run([input, "--state", "SW1", "--layer", "Power", "--show-nets", "--legend", "-o", output])).to eq(0)
       svg = File.read(output)
       expect(svg).to include('data-state="SW1"', 'data-ref="W1"')
       expect(svg).not_to include('data-ref="W2"', "<script")
+      document = REXML::Document.new(svg)
+      visible_hole = REXML::XPath.first(document, "//use[@data-hole='a1']")
+      hidden_hole = REXML::XPath.first(document, "//use[@data-hole='b3']")
+      expect(visible_hole.attributes["data-occupied"]).to eq("true")
+      expect(hidden_hole.attributes["data-occupied"]).to be_nil
+      expect(hidden_hole.attributes["data-connected"]).to be_nil
+      expect(document.root.elements["desc"].text).to include("netlist includes all layers")
+      hidden_net = Breadkit.load(input).nets.find { |net| net.members.include?("W2") }
+      expect(REXML::XPath.match(document, "//g[@id='nets']/text").map(&:text)).not_to include(hidden_net.name)
+      expect(REXML::XPath.match(document, "//g[@id='legend']/text").map(&:text)).not_to include(hidden_net.name)
       expect(described_class.new.run([input, "--state", "missing", "-o", output])).to eq(2)
       expect(described_class.new.run([input, "--layer", "missing", "-o", output])).to eq(2)
     end
