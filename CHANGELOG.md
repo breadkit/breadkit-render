@@ -30,6 +30,6 @@
 - Add a standalone HTML viewer with zoom, pan, layer controls, and net hover.
 - Add `--diff OLD NEW` with colored added and removed wires in a two-panel HTML viewer.
 
-## 0.1.0 — 2026-09-27
+## 0.1.0
 
 - Initial release.
