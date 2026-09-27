@@ -36,7 +36,7 @@ module Breadkit
           opts.on("--focus REF") { |value| options[:focus] = value }
           opts.on("--highlight-net NAME") { |value| options[:highlight_net] = value }
           opts.on("--diff") { options[:diff] = true }
-          opts.on("--backend NAME", %w[auto rsvg resvg vips magick]) { |value| options[:backend] = value }
+          opts.on("--backend NAME", %w[auto rsvg resvg vips magick chrome]) { |value| options[:backend] = value }
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
           opts.on("--watch") { options[:watch] = true }

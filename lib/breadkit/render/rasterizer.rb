@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+
 module Breadkit
   module Render
     class Rasterizer
@@ -9,7 +11,7 @@ module Breadkit
         format = format.to_s
         backend = backend.to_s
         raise Error, "unsupported raster format: #{format}" unless %w[png jpeg webp pdf].include?(format)
-        raise Error, "unsupported raster backend: #{backend}" unless %w[auto rsvg resvg vips magick].include?(backend)
+        raise Error, "unsupported raster backend: #{backend}" unless %w[auto rsvg resvg vips magick chrome].include?(backend)
 
         begin
           scale = Float(scale)
@@ -24,10 +26,11 @@ module Breadkit
         candidates = case backend
         when "rsvg" then ["rsvg"]
         when "resvg" then ["resvg"]
+        when "chrome" then ["chrome"]
         when "magick" then ["magick"]
         when "vips" then ["vips"]
         else case format
-        when "png" then %w[rsvg resvg vips magick]
+        when "png" then %w[rsvg resvg vips magick chrome]
         when "pdf" then %w[rsvg]
         else %w[vips magick]
         end
@@ -40,7 +43,7 @@ module Breadkit
             raise if backend != "auto" || e.is_a?(TimeoutError)
           end
         end
-        raise Error, "no conversion backend found for #{format}; install librsvg, resvg, ruby-vips, or ImageMagick"
+        raise Error, "no conversion backend found for #{format}; install librsvg, resvg, ruby-vips, ImageMagick, or Chrome"
       end
 
       private
@@ -48,6 +51,7 @@ module Breadkit
       def supports?(name, format)
         return !!executable("rsvg-convert") if name == "rsvg" && %w[png pdf].include?(format)
         return !!executable("resvg") if name == "resvg" && format == "png"
+        return !!chrome_binary if name == "chrome" && format == "png"
         return !!magick_command if name == "magick" && format != "pdf"
         return false unless name == "vips" && format != "pdf"
         require "vips"
@@ -67,6 +71,72 @@ module Breadkit
         raise Error, "resvg failed: #{stderr}" unless status.success?
 
         stdout
+      end
+
+      def chrome(svg, _format, scale, _background, _quality, timeout)
+        width, height = chrome_dimensions(svg, scale)
+        Dir.mktmpdir("breadkit-chrome-") do |dir|
+          html_path = File.join(dir, "image.html")
+          png_path = File.join(dir, "image.png")
+          error_path = File.join(dir, "chrome.log")
+          encoded = [svg].pack("m0")
+          File.write(html_path, %(<html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}img{display:block;width:#{width}px;height:#{height}px}</style></head><body><img src="data:image/svg+xml;base64,#{encoded}"></body></html>))
+          command = [chrome_binary, "--headless", "--disable-gpu", "--disable-background-networking", "--no-first-run",
+                     "--no-default-browser-check", "--hide-scrollbars", "--force-device-scale-factor=1",
+                     "--window-size=#{width},#{height}", "--screenshot=#{png_path}",
+                     "--user-data-dir=#{File.join(dir, 'profile')}", "file://#{html_path}"]
+          process_options = { out: File::NULL, err: error_path }
+          process_options[:pgroup] = true unless RbConfig::CONFIG["host_os"].match?(/mswin|mingw/i)
+          pid = Process.spawn(*command, **process_options)
+          begin
+            deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+            loop do
+              if File.file?(png_path)
+                bytes = File.binread(png_path)
+                if bytes.start_with?("\x89PNG\r\n\x1a\n".b) && bytes.end_with?("IEND\xAE\x42\x60\x82".b)
+                  actual = bytes.byteslice(16, 8).unpack("N2")
+                  raise Error, "Chrome PNG dimensions #{actual.join('x')} differ from #{width}x#{height}" unless actual == [width, height]
+                  return bytes
+                end
+              end
+              break if Process.waitpid(pid, Process::WNOHANG)
+              raise TimeoutError, "Chrome timed out after #{timeout} seconds" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+              sleep 0.02
+            end
+            raise Error, "Chrome failed: #{File.read(error_path).lines.last.to_s.strip}"
+          ensure
+            signal = process_options[:pgroup] ? -pid : pid
+            begin
+              Process.kill("KILL", signal)
+              Process.waitpid(pid)
+            rescue Errno::ESRCH, Errno::ECHILD
+              nil
+            end
+          end
+        end
+      end
+
+      def chrome_dimensions(svg, scale)
+        match = /<svg\b[^>]*\bwidth="([\d.]+)"\s+height="([\d.]+)"/.match(svg)
+        raise Error, "Chrome needs SVG width and height dimensions" unless match
+
+        dimensions = match.captures.map { |value| (value.to_f * scale).round }
+        raise Error, "Chrome dimensions must be 1 to 16384 pixels" unless dimensions.all? { |value| value.between?(1, 16_384) }
+
+        dimensions
+      end
+
+      def chrome_binary
+        configured = ENV["BREADKIT_CHROME"]
+        return configured if configured && File.executable?(configured)
+
+        %w[google-chrome chromium chromium-browser chrome].each do |name|
+          path = executable(name)
+          return path if path
+        end
+        mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        mac if File.executable?(mac)
       end
 
       def magick(svg, format, scale, background, quality, timeout)

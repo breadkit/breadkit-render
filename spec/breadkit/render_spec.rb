@@ -898,6 +898,15 @@ RSpec.describe Breadkit::Render::CLI do
     expect(rasterizer.rasterize("<svg/>", format: "png", backend: "resvg")).to eq("PNG")
   end
 
+  it "selects Chrome only for PNG and rejects invalid SVG dimensions" do
+    rasterizer = Breadkit::Render::Rasterizer.new
+    allow(rasterizer).to receive(:supports?).with("chrome", "png").and_return(true)
+    expect(rasterizer).to receive(:chrome).with('<svg width="20" height="30"/>', "png", 2.0, "white", 90, 60).and_return("PNG")
+    expect(rasterizer.rasterize('<svg width="20" height="30"/>', format: "png", backend: "chrome")).to eq("PNG")
+    expect { rasterizer.send(:chrome_dimensions, '<svg/>', 2.0) }.to raise_error(Breadkit::Render::Error, /dimensions/)
+    expect(rasterizer.send(:chrome_dimensions, '<svg width="20" height="30"/>', 2.0)).to eq([40, 60])
+  end
+
   it "stops external raster commands after the requested timeout" do
     rasterizer = Breadkit::Render::Rasterizer.new
     expect { rasterizer.send(:capture_command, RbConfig.ruby, "-e", "sleep 2", svg: "", timeout: 0.05) }

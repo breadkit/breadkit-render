@@ -286,7 +286,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--focus REF` | none | Emphasize one component and its connected wires. |
 | `--highlight-net NAME` | none | Emphasize one net and its connected components. |
 | `--diff` | off | Compare two circuit files in a standalone HTML viewer. |
-| `--backend NAME` | `auto` | Use `rsvg`, `resvg`, `vips`, or `magick` for raster output. |
+| `--backend NAME` | `auto` | Use `rsvg`, `resvg`, `vips`, `magick`, or `chrome` for raster output. |
 | `--background COLOR` | white | Set the JPEG background with a CSS name, `#RGB`, or `#RRGGBB`; PNG and SVG reject it. |
 | `--quality N` | `90` | JPEG and WebP quality. |
 | `--print-template` | off | Export a full-board PDF with physical hole spacing for 100% printing. |
@@ -317,12 +317,16 @@ field; the current core main branch has the required schema support.
 ## Raster backends
 
 PNG and APNG use the first available backend: `rsvg-convert`, `resvg`,
-`ruby-vips`, then ImageMagick. JPEG and WebP use `ruby-vips` or ImageMagick. PDF uses
+`ruby-vips`, ImageMagick, then Chrome. JPEG and WebP use `ruby-vips` or ImageMagick. PDF uses
 `rsvg-convert` and keeps the SVG as vector content. Install `librsvg`
 (`brew install librsvg` or `apt install librsvg2-bin`) for PDF output.
 `ruby-vips` needs a libvips build with SVG and WebP support for WebP output.
 The optional `resvg` executable also converts SVG to PNG; choose it with
 `--backend resvg` when installed.
+Chrome or Chromium can generate PNG screenshots with `--backend chrome`; set
+`BREADKIT_CHROME` to an executable path if it is outside `PATH`. Chrome PNGs
+have an opaque white background outside the board. Chrome uses a temporary
+profile and does not open your normal browser profile.
 
 ## Container image
 

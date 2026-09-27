@@ -5,6 +5,7 @@
 - Allow validated custom color palettes and embedded fonts in breadboard output.
 - Resolve named switch states directly and reject HTML viewers that exceed the 256-state budget.
 - Render safe custom SVG part bodies from `render.svg` fragments in part YAML.
+- Add optional headless Chrome PNG rendering with checked output dimensions.
 - Export APNG animations from assembly steps or switch states with configurable frame timing.
 - Draw TO-92 transistor and trimmer potentiometer bodies instead of generic rectangles.
 - Add an optional `resvg` PNG backend and a source-built container image with librsvg and Noto fonts.
