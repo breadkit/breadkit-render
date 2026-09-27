@@ -208,8 +208,9 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
   four color bands by default; `bands: 5` selects five.
 - Footprint module bodies follow the DSL's `rotate:` and `mirror:` placement
   options, including asymmetric body offsets and labeled pins.
-- The built-in `sc56_11ewa` seven-segment display and `wp154a4sureqbfzgc`
-  RGB LED have dedicated diagram shapes.
+- The built-in TO-92 transistors, trimmer potentiometer, `sc56_11ewa`
+  seven-segment display, and `wp154a4sureqbfzgc` RGB LED have dedicated
+  diagram shapes.
 - Occupied holes and connected holes have different markers. LED colors accept
   CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
   or connected hole in the SVG to see its hole ID and net.

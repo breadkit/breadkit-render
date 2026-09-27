@@ -98,6 +98,16 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(REXML::XPath.match(document, "//g[@data-ref='RGB1']//*[@data-channel]").map { |node| node.attributes["data-channel"] }).to eq(%w[R G B])
   end
 
+  it "draws TO-92 transistor and trimmer potentiometer bodies" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :mini; transistor :Q1, "BC547", pins: %w[a1 a2 a3]; pot :RV1, at: "a7"', "bodies.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    expect(diagram.diagnostics.select { |item| item.severity == "error" }).to be_empty
+    document = REXML::Document.new(described_class.new.render(diagram))
+    expect(REXML::XPath.first(document, "//g[@data-ref='Q1']/path[@data-shape='to92']")).not_to be_nil
+    expect(REXML::XPath.first(document, "//g[@data-ref='RV1']/circle[@data-shape='potentiometer']")).not_to be_nil
+  end
+
   it "focuses a component and highlights a selected net" do
     target = circuit.nets.find { |net| net.name == "VCC" }
     svg = described_class.new.render(circuit, focus: "SW1", highlight_net: target.name)

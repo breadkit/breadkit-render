@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Export APNG animations from assembly steps or switch states with configurable frame timing.
+- Draw TO-92 transistor and trimmer potentiometer bodies instead of generic rectangles.
 - Require Breadkit 0.2.x and use a sibling core checkout during development and CI.
 - Show all circuit diagnostics on stderr, including warnings and errors when `--force` is used.
 - Fall back to visible colors for invalid wire and LED colors.

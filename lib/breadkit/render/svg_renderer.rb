@@ -356,6 +356,8 @@ module Breadkit
           xs, ys = pins.map { |_pin, hole| px(display_hole(hole).x) }, pins.map { |_pin, hole| py(display_hole(hole).y) }
           center_x, center_y = (xs.min + xs.max) / 2.0, (ys.min + ys.max) / 2.0
           shape = component.part.data.dig("render", "shape")
+          shape = "to92" if shape == "generic" && %w[transistor 2n3904 2n3906 bc547 bc557].include?(component.part.id)
+          shape = "potentiometer" if shape == "generic" && component.part.id == "pot"
           body = case shape
           when "resistor" then resistor_svg(component, pins, center_x, center_y)
           when "led_5mm" then led_svg(component, pins, center_x, center_y)
@@ -366,6 +368,8 @@ module Breadkit
           when "tact_switch" then switch_svg(component, pins, center_x, center_y)
           when "seven_segment" then seven_segment_svg(component, pins, center_x, center_y)
           when "rgb_led_5mm" then rgb_led_svg(component, pins, center_x, center_y)
+          when "to92" then to92_svg(component, pins, center_x, center_y)
+          when "potentiometer" then potentiometer_svg(component, pins, center_x, center_y)
           else generic_svg(component, pins, center_x, center_y)
           end
           opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
@@ -597,6 +601,25 @@ module Breadkit
         out = [lead_lines(pins, x, y)]
         out << rect(x - 9, y - 5, 18, 10, rx: 2, fill: @colors[:component_bg], stroke: @colors[:component_border], data_ref: component.ref)
         out << text(x, y + 1.5, component.ref, "font-size" => 4.5, "font-weight" => 500, "text-anchor" => "middle")
+        out.join
+      end
+
+      def to92_svg(component, pins, x, y)
+        out = [lead_lines(pins, x, y)]
+        path = "M #{fmt(x - 8)} #{fmt(y - 4)} H #{fmt(x + 8)} V #{fmt(y)} A 8 8 0 0 1 #{fmt(x - 8)} #{fmt(y)} Z"
+        out << tag("path", d: path, fill: @colors[:dip_bg], stroke: @colors[:dip_border], stroke_width: 1,
+                            data_shape: "to92")
+        out << text(x, y + 1.5, component.ref, "font-size" => 4.5, "fill" => @colors[:dip_text], "text-anchor" => "middle")
+        out.join
+      end
+
+      def potentiometer_svg(component, pins, x, y)
+        out = [lead_lines(pins, x, y)]
+        out << rect(x - 12, y - 8, 24, 16, rx: 2, fill: @colors[:component_bg], stroke: @colors[:component_border])
+        out << circle(x, y, 6, fill: @colors[:switch_button], stroke: @colors[:switch_button_border],
+                                data_shape: "potentiometer")
+        out << line(x - 3, y + 3, x + 3, y - 3, @colors[:switch_button_border], 1.2)
+        out << text(x, y - 11, component.ref, "font-size" => 4.5, "text-anchor" => "middle")
         out.join
       end
 
