@@ -17,7 +17,7 @@ module Breadkit
           opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg webp pdf apng]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
           opts.on("--view NAME", %w[breadboard netlist schematic]) { |value| options[:view] = value }
           opts.on("--scale N", Float) { |value| options[:scale] = value }
-          opts.on("--theme NAME", %w[light dark print]) { |value| options[:theme] = value }
+          opts.on("--theme NAME", %w[light dark print colorblind]) { |value| options[:theme] = value }
           opts.on("--theme-file PATH") { |value| options[:theme_file] = value }
           opts.on("--font-file PATH") { |value| options[:font_file] = value }
           opts.on("--orientation NAME", %w[portrait landscape]) { |value| options[:orientation] = value }
@@ -64,6 +64,7 @@ module Breadkit
         if options.values_at(:theme_file, :font_file).any? && options[:view] != "breadboard"
           raise ArgumentError, "custom themes and embedded fonts require breadboard view"
         end
+        raise ArgumentError, "colorblind theme requires breadboard view" if options[:theme] == "colorblind" && options[:view] != "breadboard"
         raise ArgumentError, "--animate and --frame-delay require APNG output" if format != "apng" && options.values_at(:animate, :frame_delay).any?
         raise ArgumentError, "APNG cannot select a single --state or --step" if format == "apng" && options.values_at(:state, :step).any?
         validate_electrical_view_options(options, format) unless options[:view] == "breadboard"

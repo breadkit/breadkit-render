@@ -53,4 +53,16 @@ RSpec.describe "custom breadboard appearance" do
       expect { Breadkit::Render::Theme.font(big) }.to raise_error(Breadkit::Render::Error, /too large/)
     end
   end
+
+  it "offers a distinct high-contrast wire palette for colorblind output" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :mini; wire "a1", "b3", color: :red', "colors.bk.rb", 1)
+    circuit = Breadkit::Resolver.new.call(builder.document)
+    svg = Breadkit::Render::SvgRenderer.new.render(circuit, theme: "colorblind", color_by: "net")
+    document = REXML::Document.new(svg)
+    wire = REXML::XPath.first(document, "//g[@id='wires']//path[@data-ref='W1']")
+    expect(Breadkit::Render::SvgRenderer::COLORBLIND_PALETTE).to include(wire.attributes["stroke"])
+    expect(wire.attributes["stroke"]).not_to eq("red")
+    expect(Breadkit::Render::SvgRenderer::COLORS.fetch("colorblind")[:text]).to eq("#192923")
+  end
 end

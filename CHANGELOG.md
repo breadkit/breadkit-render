@@ -7,6 +7,7 @@
 - Render safe custom SVG part bodies from `render.svg` fragments in part YAML.
 - Add optional headless Chrome PNG rendering with checked output dimensions.
 - Add opt-in right-angle routes around component bodies and flat jumper styling.
+- Add a colorblind palette and make `--color-by net` override declared wire colors.
 - Export APNG animations from assembly steps or switch states with configurable frame timing.
 - Draw TO-92 transistor and trimmer potentiometer bodies instead of generic rectangles.
 - Add an optional `resvg` PNG backend and a source-built container image with librsvg and Noto fonts.

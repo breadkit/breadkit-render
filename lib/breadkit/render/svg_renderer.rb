@@ -10,6 +10,7 @@ module Breadkit
       LABEL_DENSITIES = %w[full compact none].freeze
       OFFBOARD_PIN_PITCH = 1.0
       PALETTE = %w[#d62728 #1f77b4 #2ca02c #9467bd #ff7f0e #17becf].freeze
+      COLORBLIND_PALETTE = %w[#005b96 #a33d00 #006a4e #8a3c68 #176780 #704f9a].freeze
       MODULE_PIN_COLORS = {
         "power" => "#E24B4A", "ground" => "#888780", "clock" => "#EF9F27",
         "data" => "#378ADD", "interrupt" => "#D4537E", "address" => "#888780"
@@ -55,7 +56,12 @@ module Breadkit
                      text: "#222222", label: "#444444", positive: "#333333", negative: "#777777", negative_wire: "#555555", lead: "#333333",
                      component_bg: "#f4f4f4", component_border: "#555555", module_bg: "#f4f4f4",
                      module_border: "#666666", muted: "#666666", accent: "#333333" }
-      }.freeze
+      }.tap do |palettes|
+        palettes["colorblind"] = palettes.fetch("light").merge(
+          board: "#f1f5f2", text: "#192923", label: "#43584a", positive: "#a33d00",
+          negative: "#53616a", negative_wire: "#005b96", accent: "#006a4e"
+        )
+      end.freeze
 
       def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, label_density: "full", diff_wires: {}, theme_colors: {}, font_css: nil, wire_routing: "declared", wire_style: "raised")
         @multi_board = circuit.respond_to?(:multi_board?) && circuit.multi_board?
@@ -748,7 +754,8 @@ module Breadkit
         @circuit.wires.each do |wire|
           from, to = endpoint_point(wire.from), endpoint_point(wire.to)
           next unless from && to
-          color = @theme == "print" ? "#222222" : render_color(wire.color || wire_color(wire), "wire #{wire.id}") { wire_color(wire) }
+          chosen = @color_by == "net" ? wire_color(wire) : (wire.color || wire_color(wire))
+          color = @theme == "print" ? "#222222" : render_color(chosen, "wire #{wire.id}") { wire_color(wire) }
           color = { "removed" => "#d94c48", "added" => "#23a86b" }.fetch(@diff_wires[wire.id], color)
           path = if wire.route == "arc"
             control_y = (py(from[1]) + py(to[1])) / 2.0 - 8
@@ -946,7 +953,8 @@ module Breadkit
         return "#222222" if @theme == "print"
 
         wire = net.members.filter_map { |member| @wires_by_id[member] }.first
-        wire ? render_color(wire.color || wire_color(wire), "wire #{wire.id}") { wire_color(wire) } : PALETTE[@net_indexes.fetch(net) % PALETTE.length]
+        chosen = @color_by == "net" ? wire_color(wire) : (wire&.color || wire_color(wire)) if wire
+        wire ? render_color(chosen, "wire #{wire.id}") { wire_color(wire) } : wire_palette[@net_indexes.fetch(net) % wire_palette.length]
       end
 
       def render_color(value, context)
@@ -1446,10 +1454,14 @@ module Breadkit
           return voltage.positive? ? @colors[:positive] : (voltage.negative? ? @colors[:negative_wire] : @colors[:text]) if voltage
           if net
             hash = net.name.each_byte.reduce(2_166_136_261) { |value, byte| ((value ^ byte) * 16_777_619) & 0xffffffff }
-            return PALETTE[hash % PALETTE.length]
+            return wire_palette[hash % wire_palette.length]
           end
         end
-        PALETTE[@wire_indexes.fetch(wire) % PALETTE.length]
+        wire_palette[@wire_indexes.fetch(wire) % wire_palette.length]
+      end
+
+      def wire_palette
+        @theme == "colorblind" ? COLORBLIND_PALETTE : PALETTE
       end
 
       def resistor_bands(value, bands: 4)

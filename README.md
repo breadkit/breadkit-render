@@ -87,6 +87,7 @@ bkrender circuit.bk.rb --view schematic --theme dark -o schematic.svg
 bkrender circuit.bk.rb --label-density compact -o compact.svg
 bkrender circuit.bk.rb --wire-routing auto --wire-style flat -o flat-jumpers.svg
 bkrender circuit.bk.rb --theme-file palette.json --font-file ./typeface.woff2 -o branded.svg
+bkrender circuit.bk.rb --theme colorblind --color-by net -o accessible.svg
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
@@ -274,12 +275,12 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, `jpeg`, `webp`, `pdf`, or `apng`. Conflicting extensions are errors. |
 | `--view NAME` | `breadboard` | `breadboard`, `schematic` (symbols and net labels), or `netlist` (resolved net buses). |
 | `--scale N` | `2` | Image and PDF output scale. |
-| `--theme NAME` | `light` | `light`, `dark`, or `print`. |
+| `--theme NAME` | `light` | `light`, `dark`, `print`, or breadboard-only `colorblind`. |
 | `--theme-file PATH` | none | Load a JSON palette with a `base` theme and selected `colors` overrides. Breadboard view only. |
 | `--font-file PATH` | none | Embed a TTF, OTF, WOFF, or WOFF2 font in the breadboard SVG. Maximum 5 MiB. |
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |
 | `--rail-pattern PATTERN` | board layout | Set rail polarity with `+--+`, `+-+-`, `-+-+`, or `-++-`. |
-| `--color-by MODE` | `wire` | Use declared wire colors or deterministic net colors. |
+| `--color-by MODE` | `wire` | Use declared wire colors or deterministic net colors, even when a wire declares a color. |
 | `--label-density MODE` | `full` | Breadboard foreground labels: `full` (reference and value), `compact` (reference only), or `none` (hidden). |
 | `--wire-routing MODE` | `declared` | `declared` or `auto` for on-board straight wires. |
 | `--wire-style MODE` | `raised` | `raised` or `flat` jumper appearance. |
