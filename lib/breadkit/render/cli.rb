@@ -173,7 +173,8 @@ module Breadkit
             <style>
               *{box-sizing:border-box}body{margin:0;background:#{background};color:#{foreground};font:14px system-ui,sans-serif}
               #viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;cursor:grab}#viewport.dragging{cursor:grabbing}
-              #scene{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}#scene svg{display:block;max-width:none}
+              #scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform-origin:0 0;will-change:transform}
+              #scene svg{display:block;width:100%;height:100%}#scene.ready{inset:auto;display:block}#scene.ready svg{width:auto;height:auto;max-width:none}
               .net-muted{opacity:.18!important}
               #toolbar{position:fixed;z-index:2;top:16px;right:16px;display:flex;gap:4px;padding:4px;border:1px solid currentColor;border-radius:8px;background:#{background}}
               button{color:inherit;background:transparent;border:0;border-radius:4px;min-width:36px;height:32px;font:inherit;cursor:pointer}button:hover,button:focus-visible{outline:2px solid currentColor}
@@ -190,7 +191,7 @@ module Breadkit
               const viewport=document.getElementById('viewport'),scene=document.getElementById('scene'),svg=scene.querySelector('svg');
               let scale=1,x=0,y=0,dragging=false,lastX=0,lastY=0,activeNet=null;
               const paint=()=>{scene.style.transform=`translate(${x}px,${y}px) scale(${scale})`};
-              const fit=()=>{const w=Number(svg.getAttribute('width')),h=Number(svg.getAttribute('height'));
+              const fit=()=>{scene.classList.add('ready');const w=Number(svg.getAttribute('width')),h=Number(svg.getAttribute('height'));
                 scale=Math.min((viewport.clientWidth-32)/w,(viewport.clientHeight-32)/h);x=(viewport.clientWidth-w*scale)/2;y=(viewport.clientHeight-h*scale)/2;paint()};
               const zoom=(factor,cx,cy)=>{const next=Math.max(.1,Math.min(12,scale*factor));x=cx-(cx-x)*next/scale;y=cy-(cy-y)*next/scale;scale=next;paint()};
               viewport.addEventListener('wheel',event=>{event.preventDefault();const box=viewport.getBoundingClientRect();zoom(event.deltaY<0?1.15:1/1.15,event.clientX-box.left,event.clientY-box.top)},{passive:false});
