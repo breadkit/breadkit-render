@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#101719">
-    <meta name="description" content="Generate layered SVG, PNG, and JPEG breadboard diagrams from Breadkit circuit files.">
+    <meta name="description" content="Generate interactive SVG, HTML, PDF, and animated breadboard diagrams from Breadkit circuit files.">
     <title>breadkit-render | Turn wiring into a clear diagram</title>
     <link rel="canonical" href="https://breadkit.github.io/breadkit-render/">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -30,7 +30,7 @@
         <div class="max-w-xl">
           <p class="mb-5 text-sm font-medium text-copper">The Breadkit diagram generator</p>
           <h1 class="text-balance text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">Turn wiring into a clear diagram.</h1>
-          <p class="mt-6 max-w-lg text-pretty text-lg leading-8 text-muted">Generate a breadboard diagram from components and wires written in Ruby. Switch layers in SVG, or save the result as PNG or JPEG.</p>
+          <p class="mt-6 max-w-lg text-pretty text-lg leading-8 text-muted">Generate a breadboard diagram from components and wires written in Ruby. Explore layers in SVG and HTML, or export images, PDF, and assembly animations.</p>
           <div class="mt-8 flex flex-wrap gap-x-6 gap-y-4">
             <a class="rounded-sm bg-copper px-5 py-3 font-semibold text-ink hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="./images/sensor-demo.svg">Open example SVG</a>
             <a class="rounded-sm py-3 font-medium text-paper underline decoration-line underline-offset-4 hover:decoration-copper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper" href="https://github.com/breadkit/breadkit/blob/main/examples/05_sensor_demo.bk.rb">View circuit source</a>
@@ -57,6 +57,7 @@ bkrender circuit.bk.rb -o circuit.png --scale 2</code></pre>
             <div class="border-t border-line py-6 md:border-l md:border-t-0 md:px-8"><h3 class="text-balance text-xl font-semibold">PNG</h3><p class="mt-3 text-pretty leading-7 text-muted">Useful for READMEs and sharing. Set the resolution with <code class="font-mono text-paper">--scale</code>.</p></div>
             <div class="border-t border-line py-6 md:border-l md:border-t-0 md:pl-8"><h3 class="text-balance text-xl font-semibold">JPEG</h3><p class="mt-3 text-pretty leading-7 text-muted">Save a raster image with a chosen background color and quality.</p></div>
           </div>
+          <p class="mt-6 text-pretty leading-7 text-muted">Need a walkthrough? <code class="font-mono text-paper">bkrender circuit.bk.rb --animate steps -o assembly.apng</code> combines numbered assembly steps into one looping image. Use <code class="font-mono text-paper">--animate states</code> to show switch states. These options are available from the unreleased main branch.</p>
         </div>
       </section>
 

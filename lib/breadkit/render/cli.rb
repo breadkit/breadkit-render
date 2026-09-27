@@ -14,7 +14,7 @@ module Breadkit
         parser = OptionParser.new do |opts|
           opts.banner = "Usage: bkrender [options] INPUT"
           opts.on("-o", "--output PATH") { |value| options[:output] = value }
-          opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg webp pdf]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
+          opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg webp pdf apng]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
           opts.on("--view NAME", %w[breadboard netlist schematic]) { |value| options[:view] = value }
           opts.on("--scale N", Float) { |value| options[:scale] = value }
           opts.on("--theme NAME", %w[light dark print]) { |value| options[:theme] = value }
@@ -28,6 +28,8 @@ module Breadkit
           opts.on("--annotations FILE") { |value| options[:annotations] = value }
           opts.on("--state NAME") { |value| options[:state] = value }
           opts.on("--step N", Integer) { |value| options[:step] = value }
+          opts.on("--animate MODE", %w[steps states]) { |value| options[:animate] = value }
+          opts.on("--frame-delay MS", Integer) { |value| options[:frame_delay] = value }
           opts.on("--layer NAME") { |value| options[:layer] = value }
           opts.on("--focus REF") { |value| options[:focus] = value }
           opts.on("--highlight-net NAME") { |value| options[:highlight_net] = value }
@@ -50,6 +52,8 @@ module Breadkit
         raise ArgumentError, "--diff requires OLD and NEW inputs" if options[:diff] && !second_input
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
+        raise ArgumentError, "--animate and --frame-delay require APNG output" if format != "apng" && options.values_at(:animate, :frame_delay).any?
+        raise ArgumentError, "APNG cannot select a single --state or --step" if format == "apng" && options.values_at(:state, :step).any?
         validate_electrical_view_options(options, format) unless options[:view] == "breadboard"
         validate_step_options(options, format) if options[:step]
         if options[:print_template]
@@ -88,6 +92,11 @@ module Breadkit
         end
         renderer = { "breadboard" => SvgRenderer, "netlist" => NetlistRenderer,
                      "schematic" => SchematicRenderer }.fetch(options[:view])
+        if format == "apng"
+          output = render_animation(circuit, options, render_options)
+          options[:output] ? File.binwrite(options[:output], output) : $stdout.write(output)
+          return 0
+        end
         svg = renderer.new.render(circuit, **render_options)
         svg = add_step_banner(svg, options[:step], step, all_steps, options[:theme]) if step
         svg = print_dimensions(svg) if options[:print_template]
@@ -110,6 +119,35 @@ module Breadkit
       end
 
       private
+
+      def render_animation(circuit, options, render_options)
+        raise ArgumentError, "APNG is available only in breadboard view" unless options[:view] == "breadboard"
+
+        steps = circuit.respond_to?(:steps) ? circuit.steps : []
+        mode = options[:animate] || (steps.empty? ? "states" : "steps")
+        if mode == "steps" && options.values_at(:annotations, :focus, :highlight_net, :layer).any?
+          raise ArgumentError, "APNG assembly steps cannot use annotations, focus, highlighted nets, or a layer filter"
+        end
+        frames = if mode == "steps"
+          steps.each_index.map do |index|
+            number = index + 1
+            svg = SvgRenderer.new.render(circuit_for_step(circuit, number), **render_options.merge(crop: "none", interactive_layers: false))
+            add_step_banner(svg, number, steps[index], steps, options[:theme])
+          end
+        else
+          circuit.states("all").map do |state|
+            SvgRenderer.new.render(circuit, **render_options.merge(crop: "none", state: state, interactive_layers: false))
+          end
+        end
+        raise ArgumentError, "APNG requires at least two #{mode}" unless frames.length >= 2
+
+        rasterizer = Rasterizer.new
+        images = frames.map do |svg|
+          rasterizer.rasterize(svg, format: "png", scale: options[:scale], backend: options[:backend],
+                               timeout: options[:render_timeout] || 60)
+        end
+        ApngEncoder.new.encode(images, delay_ms: options[:frame_delay] || 800)
+      end
 
       def watch(input, second_input, annotations, output, args)
         root = File.dirname(File.expand_path(input))
@@ -236,7 +274,7 @@ module Breadkit
       def output_format(options)
         extension = File.extname(options[:output].to_s).downcase
         from_path = { ".svg" => "svg", ".html" => "html", ".png" => "png", ".jpg" => "jpeg", ".jpeg" => "jpeg",
-                      ".webp" => "webp", ".pdf" => "pdf" }[extension]
+                      ".webp" => "webp", ".pdf" => "pdf", ".apng" => "apng" }[extension]
         raise ArgumentError, "unsupported output extension: #{extension}" if options[:output] && !from_path
         if options[:format] && from_path && options[:format] != from_path
           raise ArgumentError, "--format conflicts with output extension"

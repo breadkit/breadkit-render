@@ -8,6 +8,7 @@ require_relative "render/svg_renderer"
 require_relative "render/netlist_renderer"
 require_relative "render/schematic_renderer"
 require_relative "render/rasterizer"
+require_relative "render/apng_encoder"
 require_relative "render/cli"
 
 module Breadkit

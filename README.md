@@ -26,7 +26,8 @@
 ---
 
 `bkrender` draws a [Breadkit](https://github.com/breadkit/breadkit) circuit
-from a Ruby DSL file or resolved JSON IR. It produces SVG, PNG, and JPEG,
+from a Ruby DSL file or resolved JSON IR. It produces SVG, HTML, PNG, JPEG,
+WebP, PDF, and animated PNG,
 including diagrams with offboard modules and separately viewable wire layers.
 
 ## Example output
@@ -78,6 +79,7 @@ bkrender circuit.bk.rb -o circuit.svg --theme dark --show-nets --legend
 bkrender circuit.bk.rb -o circuit.png --scale 3
 bkrender circuit.bk.rb -o circuit.webp --quality 85
 bkrender circuit.bk.rb -o circuit.pdf
+bkrender circuit.bk.rb --animate states -o switches.apng
 bkrender circuit.bk.rb --print-template -o board-template.pdf
 bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender circuit.bk.rb --view netlist --theme dark -o netlist.svg
@@ -87,7 +89,7 @@ bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
 
-PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
+PNG, JPEG, WebP, PDF, and APNG need a conversion backend; SVG works without one.
 Breadboard labels show formatted values such as `330Ω` and `100nF` by default.
 Use `--label-density compact` for references only, or `none` to hide foreground
 component labels. `compact` is recommended for dense diagrams. Each SVG
@@ -159,6 +161,7 @@ end
 ```sh
 bkrender circuit.bk.rb --step 1 --theme dark -o step-1.svg
 bkrender circuit.bk.rb --step 2 --theme dark -o step-2.svg
+bkrender circuit.bk.rb --animate steps --frame-delay 800 -o assembly.apng
 ```
 
 Each stage uses the full board dimensions and recalculates its nets from the
@@ -166,6 +169,11 @@ visible components and wires. The step title appears above the board. `--step`
 works with breadboard SVG and image output; HTML, netlist view, diff,
 print templates, and annotations are unavailable. A wire to a later board-mounted
 component pin stays at that pin's physical hole until the component is placed.
+APNG combines all numbered steps into a looping animation; each frame keeps
+the same full-board dimensions and step heading. With no steps, APNG animates
+the open and closed switch states instead. Use `--animate states` or
+`--animate steps` to select explicitly when a circuit has both. At least two
+frames are required, and `--frame-delay` sets milliseconds per frame.
 
 ## Named boards
 
@@ -235,8 +243,8 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.pdf` select the format. |
-| `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, `jpeg`, `webp`, or `pdf`. Conflicting extensions are errors. |
+| `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.pdf`, and `.apng` select the format. |
+| `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, `jpeg`, `webp`, `pdf`, or `apng`. Conflicting extensions are errors. |
 | `--view NAME` | `breadboard` | `breadboard`, `schematic` (symbols and net labels), or `netlist` (resolved net buses). |
 | `--scale N` | `2` | Image and PDF output scale. |
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
@@ -249,6 +257,8 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |
 | `--state NAME` | open switches | Render a switch state such as `SW1`; net colors and switch markers follow that state. |
 | `--step N` | all steps | Render the board after assembly step `N`, with a fixed full-board frame and a visible step title. |
+| `--animate MODE` | steps if present, else states | For APNG, animate `steps` or `states`. APNG is available in breadboard view. |
+| `--frame-delay MS` | `800` | APNG delay per frame, from 1 to 65,535 milliseconds. |
 | `--layer NAME` | all layers | Render one named layer, including in image and PDF output. |
 | `--focus REF` | none | Emphasize one component and its connected wires. |
 | `--highlight-net NAME` | none | Emphasize one net and its connected components. |
@@ -264,7 +274,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 
 ## Raster backends
 
-PNG uses the first available backend: `rsvg-convert`, `ruby-vips`, then
+PNG and APNG use the first available backend: `rsvg-convert`, `ruby-vips`, then
 ImageMagick. JPEG and WebP use `ruby-vips` or ImageMagick. PDF uses
 `rsvg-convert` and keeps the SVG as vector content. Install `librsvg`
 (`brew install librsvg` or `apt install librsvg2-bin`) for PDF output.

@@ -46,6 +46,10 @@ module Breadkit
       ) -> String
     end
 
+    class ApngEncoder
+      def encode: (Array[String] images, ?delay_ms: Integer) -> String
+    end
+
     class CLI
       def run: (Array[String] argv) -> Integer
     end
