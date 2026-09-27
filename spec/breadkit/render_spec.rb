@@ -562,6 +562,21 @@ RSpec.describe Breadkit::Render::CLI do
       .to eq(2)
   end
 
+  it "writes PDF and WebP using output extensions" do
+    input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    Dir.mktmpdir do |directory|
+      pdf = File.join(directory, "diagram.pdf")
+      webp = File.join(directory, "diagram.webp")
+      expect(described_class.new.run([input, "-o", pdf])).to eq(0)
+      expect(File.binread(pdf)).to start_with("%PDF-".b)
+      expect(described_class.new.run([input, "-o", webp])).to eq(0)
+      expect(File.binread(webp).byteslice(0, 4)).to eq("RIFF")
+      expect(File.binread(webp).byteslice(8, 4)).to eq("WEBP")
+    end
+  rescue Breadkit::Render::Error => e
+    skip e.message
+  end
+
   it "rasterizes to PNG and JPEG when optional system backends are installed" do
     svg = Breadkit::Render::SvgRenderer.new.render(Breadkit.load(File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)))
     rasterizer = Breadkit::Render::Rasterizer.new
@@ -599,9 +614,10 @@ RSpec.describe Breadkit::Render::CLI do
   it "produces valid raster files through each available backend" do
     rasterizer = Breadkit::Render::Rasterizer.new
     svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
-    signatures = { "png" => "\x89PNG\r\n\x1a\n".b, "jpeg" => "\xFF\xD8".b }
+    signatures = { "png" => "\x89PNG\r\n\x1a\n".b, "jpeg" => "\xFF\xD8".b, "pdf" => "%PDF-".b, "webp" => "RIFF".b }
 
-    [["rsvg", "png"], ["vips", "png"], ["vips", "jpeg"], ["magick", "png"], ["magick", "jpeg"]].each do |backend, format|
+    [["rsvg", "png"], ["rsvg", "pdf"], ["vips", "png"], ["vips", "jpeg"], ["vips", "webp"],
+     ["magick", "png"], ["magick", "jpeg"], ["magick", "webp"]].each do |backend, format|
       next unless rasterizer.send(:supports?, backend, format)
 
       output = rasterizer.rasterize(svg, format: format, backend: backend)

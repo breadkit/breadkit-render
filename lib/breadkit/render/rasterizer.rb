@@ -6,7 +6,7 @@ module Breadkit
       def rasterize(svg, format:, scale: 2.0, background: "white", quality: 90, backend: "auto", timeout: 60)
         format = format.to_s
         backend = backend.to_s
-        raise Error, "unsupported raster format: #{format}" unless %w[png jpeg].include?(format)
+        raise Error, "unsupported raster format: #{format}" unless %w[png jpeg webp pdf].include?(format)
         raise Error, "unsupported raster backend: #{backend}" unless %w[auto rsvg vips magick].include?(backend)
 
         begin
@@ -23,7 +23,11 @@ module Breadkit
         when "rsvg" then ["rsvg"]
         when "magick" then ["magick"]
         when "vips" then ["vips"]
-        else format == "png" ? %w[rsvg vips magick] : %w[vips magick]
+        else case format
+        when "png" then %w[rsvg vips magick]
+        when "pdf" then %w[rsvg]
+        else %w[vips magick]
+        end
         end
         candidates.each do |name|
           next unless supports?(name, format)
@@ -33,36 +37,36 @@ module Breadkit
             raise if backend != "auto"
           end
         end
-        raise Error, "no raster backend found for #{format}; install librsvg (brew install librsvg / apt install librsvg2-bin) or ImageMagick"
+        raise Error, "no conversion backend found for #{format}; install librsvg, ruby-vips, or ImageMagick"
       end
 
       private
 
       def supports?(name, format)
-        return !!executable("rsvg-convert") if name == "rsvg" && format == "png"
-        return !!magick_command if name == "magick"
-        return false unless name == "vips"
+        return !!executable("rsvg-convert") if name == "rsvg" && %w[png pdf].include?(format)
+        return !!magick_command if name == "magick" && format != "pdf"
+        return false unless name == "vips" && format != "pdf"
         require "vips"
         true
       rescue LoadError
         false
       end
 
-      def rsvg(svg, _format, scale, _background, _quality, timeout)
-        stdout, stderr, status = capture_command(executable("rsvg-convert"), "--format=png", "--zoom=#{scale}", svg: svg, timeout: timeout)
+      def rsvg(svg, format, scale, _background, _quality, timeout)
+        stdout, stderr, status = capture_command(executable("rsvg-convert"), "--format=#{format}", "--zoom=#{scale}", svg: svg, timeout: timeout)
         raise Error, "rsvg-convert failed: #{stderr}" unless status.success?
         stdout
       end
 
       def magick(svg, format, scale, background, quality, timeout)
         command = magick_command
-        background_color = format == "png" ? "none" : "##{background.map { |channel| channel.to_s(16).rjust(2, "0") }.join}"
+        background_color = format == "jpeg" ? "##{background.map { |channel| channel.to_s(16).rjust(2, "0") }.join}" : "none"
         args = ["-density", (96 * scale).to_s, "-background", background_color]
         font = font_file
         args.concat(["-font", font]) if font
         args << "svg:-"
         args += ["-background", background_color, "-alpha", "remove"] if format == "jpeg"
-        args += ["-quality", quality.to_s] if format == "jpeg"
+        args += ["-quality", quality.to_s] if %w[jpeg webp].include?(format)
         args << "#{format}:-"
         stdout, stderr, status = capture_command(command, *args, svg: svg, timeout: timeout)
         raise Error, "ImageMagick failed: #{stderr}" unless status.success?
@@ -74,6 +78,8 @@ module Breadkit
         if format == "jpeg"
           image = image.flatten(background: background) if image.has_alpha?
           image.jpegsave_buffer(Q: quality.to_i)
+        elsif format == "webp"
+          image.webpsave_buffer(Q: quality.to_i)
         else
           image.pngsave_buffer
         end

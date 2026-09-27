@@ -62,12 +62,14 @@ Choose a theme, add net labels, or export a raster image:
 ```sh
 bkrender circuit.bk.rb -o circuit.svg --theme dark --show-nets --legend
 bkrender circuit.bk.rb -o circuit.png --scale 3
+bkrender circuit.bk.rb -o circuit.webp --quality 85
+bkrender circuit.bk.rb -o circuit.pdf
 bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
 
-PNG and JPEG need a raster backend; SVG works without one.
+PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
 
 ## Diagram controls
 
@@ -87,7 +89,7 @@ PNG and JPEG need a raster backend; SVG works without one.
   CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
   or connected hole in the SVG to see its hole ID and net.
 - `--state SW1` shows the selected switch as closed and uses that state's nets.
-  `--layer "2 I2C"` keeps one named layer in static SVG, PNG, or JPEG output.
+  `--layer "2 I2C"` keeps one named layer in static SVG, PNG, JPEG, WebP, or PDF output.
 - `--focus R1` dims other components and unrelated wires.
   `--highlight-net VCC` emphasizes the selected net and its connected parts.
 - HTML output provides a standalone viewer with zoom, pan, layer controls, and
@@ -107,9 +109,9 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, and `.jpeg` select the format. |
-| `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, or `jpeg`. Conflicting extensions are errors. |
-| `--scale N` | `2` | Raster output scale. |
+| `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.pdf` select the format. |
+| `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, `jpeg`, `webp`, or `pdf`. Conflicting extensions are errors. |
+| `--scale N` | `2` | Image and PDF output scale. |
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |
 | `--rail-pattern PATTERN` | board layout | Set rail polarity with `+--+`, `+-+-`, `-+-+`, or `-++-`. |
@@ -118,13 +120,13 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--crop MODE` | `auto` | Crop to circuit content or show the full board with `none`. |
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |
 | `--state NAME` | open switches | Render a switch state such as `SW1`; net colors and switch markers follow that state. |
-| `--layer NAME` | all layers | Render one named layer, including in PNG and JPEG output. |
+| `--layer NAME` | all layers | Render one named layer, including in image and PDF output. |
 | `--focus REF` | none | Emphasize one component and its connected wires. |
 | `--highlight-net NAME` | none | Emphasize one net and its connected components. |
 | `--diff` | off | Compare two circuit files in a standalone HTML viewer. |
 | `--backend NAME` | `auto` | Use `rsvg`, `vips`, or `magick` for raster output. |
 | `--background COLOR` | white | Set the JPEG background with a CSS name, `#RGB`, or `#RRGGBB`; PNG and SVG reject it. |
-| `--quality N` | `90` | JPEG quality. |
+| `--quality N` | `90` | JPEG and WebP quality. |
 | `--static` | off | Omit SVG layer controls and scripts. |
 | `--force` | off | Draw resolved elements even when input has layout errors. |
 | `--render-timeout SECONDS` | 60 | Limit external raster conversion time. |
@@ -132,9 +134,10 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 ## Raster backends
 
 PNG uses the first available backend: `rsvg-convert`, `ruby-vips`, then
-ImageMagick. JPEG uses `ruby-vips` or ImageMagick. Install `librsvg`
-(`brew install librsvg` or `apt install librsvg2-bin`) or ImageMagick for
-raster output. `ruby-vips` needs a libvips build with SVG support.
+ImageMagick. JPEG and WebP use `ruby-vips` or ImageMagick. PDF uses
+`rsvg-convert` and keeps the SVG as vector content. Install `librsvg`
+(`brew install librsvg` or `apt install librsvg2-bin`) for PDF output.
+`ruby-vips` needs a libvips build with SVG and WebP support for WebP output.
 
 ## Input safety
 

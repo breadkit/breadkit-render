@@ -11,7 +11,7 @@ module Breadkit
         parser = OptionParser.new do |opts|
           opts.banner = "Usage: bkrender [options] INPUT"
           opts.on("-o", "--output PATH") { |value| options[:output] = value }
-          opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
+          opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg webp pdf]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
           opts.on("--scale N", Float) { |value| options[:scale] = value }
           opts.on("--theme NAME", %w[light dark print]) { |value| options[:theme] = value }
           opts.on("--orientation NAME", %w[portrait landscape]) { |value| options[:orientation] = value }
@@ -82,7 +82,8 @@ module Breadkit
 
       def output_format(options)
         extension = File.extname(options[:output].to_s).downcase
-        from_path = { ".svg" => "svg", ".html" => "html", ".png" => "png", ".jpg" => "jpeg", ".jpeg" => "jpeg" }[extension]
+        from_path = { ".svg" => "svg", ".html" => "html", ".png" => "png", ".jpg" => "jpeg", ".jpeg" => "jpeg",
+                      ".webp" => "webp", ".pdf" => "pdf" }[extension]
         raise ArgumentError, "unsupported output extension: #{extension}" if options[:output] && !from_path
         if options[:format] && from_path && options[:format] != from_path
           raise ArgumentError, "--format conflicts with output extension"
