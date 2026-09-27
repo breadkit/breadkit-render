@@ -10,6 +10,7 @@
 - Add `--state` and `--layer` for selected switch states and static layer output; hide markers and net labels from omitted layers.
 - Limit external raster conversion time with `--render-timeout`.
 - Draw model-specific seven-segment displays and RGB LEDs from the expanded core part catalog.
+- Add `--focus` and `--highlight-net` to emphasize selected components and nets.
 
 ## 0.1.0 — 2026-09-27
 

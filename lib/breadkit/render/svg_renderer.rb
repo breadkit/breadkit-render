@@ -56,10 +56,20 @@ module Breadkit
                      module_border: "#666666", muted: "#777777", accent: "#333333" }
       }.freeze
 
-      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil)
+      def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil)
         @circuit, @theme, @orientation, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme.to_s, orientation.to_s, show_nets, legend, color_by, annotations
         @state, @active_layer = state, active_layer&.to_s
         @nets = circuit.nets(state)
+        @focus_ref = focus&.to_s
+        raise ArgumentError, "unknown component: #{@focus_ref}" if @focus_ref && !circuit.components.key?(@focus_ref)
+        selected_net = @nets.find { |net| net.name == highlight_net.to_s } if highlight_net
+        raise ArgumentError, "unknown net: #{highlight_net}" if highlight_net && !selected_net
+        @emphasis_active = !!(@focus_ref || selected_net)
+        emphasized_nets = @nets.select { |net| net.members.any? { |member| member.start_with?("#{@focus_ref}.") } } if @focus_ref
+        emphasized_nets = emphasized_nets&.select { |net| net == selected_net } if selected_net && @focus_ref
+        emphasized_nets ||= [selected_net].compact
+        @emphasized_wire_ids = emphasized_nets.flat_map(&:members).to_set
+        @emphasized_component_refs = emphasized_nets.flat_map { |net| net.members.filter_map { |member| member.split(".", 2).first if member.include?(".") } }.to_set
         @wire_indexes = circuit.wires.each_with_index.to_h
         @wires_by_id = circuit.wires.to_h { |wire| [wire.id, wire] }
         @rail_definitions = Array(circuit.board.definition.data["rails"]).to_h { |rail| [rail["id"].to_s, rail] }
@@ -289,7 +299,8 @@ module Breadkit
           when "rgb_led_5mm" then rgb_led_svg(component, pins, center_x, center_y)
           else generic_svg(component, pins, center_x, center_y)
           end
-          body = "<g data-ref=\"#{escape(component.ref)}\">#{body}</g>"
+          opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
+          body = "<g data-ref=\"#{escape(component.ref)}\"#{opacity}>#{body}</g>"
           layer_group(body, read(component.attrs, "layer"))
         end.compact.join
       end
@@ -496,7 +507,8 @@ module Breadkit
             out << text(label_x, label_y, pin.name, "font-size" => 5.4, "fill" => connected ? @colors[:text] : @colors[:muted],
                         "text-anchor" => anchor, data_pin_label: "#{component.ref}.#{pin.name}")
           end
-          layer_group(out.join, read(component.attrs, "layer"))
+          opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
+          layer_group("<g data-ref=\"#{escape(component.ref)}\"#{opacity}>#{out.join}</g>", read(component.attrs, "layer"))
         end.join
       end
 
@@ -554,15 +566,25 @@ module Breadkit
                    data_wire: wire.id)
           end
           alternative = wire.electrical == false
-          casings << layer_group(casing, wire.layer, alternative: alternative)
-          lines << layer_group(wire_svg, wire.layer, alternative: alternative)
-          markers << layer_group(dots.join, wire.layer, alternative: alternative)
+          casings << layer_group(emphasis_group(casing, wire.id), wire.layer, alternative: alternative)
+          lines << layer_group(emphasis_group(wire_svg, wire.id), wire.layer, alternative: alternative)
+          markers << layer_group(emphasis_group(dots.join, wire.id), wire.layer, alternative: alternative)
         end
         (casings + lines + markers).join
       end
 
       def layer_names(value)
         Array(value).filter_map { |name| name.to_s unless name.nil? || name.to_s.empty? }
+      end
+
+      def emphasized_component?(ref)
+        @focus_ref ? ref == @focus_ref : @emphasized_component_refs.include?(ref)
+      end
+
+      def emphasis_group(svg, wire_id)
+        return svg unless @emphasis_active && !@emphasized_wire_ids.include?(wire_id)
+
+        "<g opacity=\"0.18\">#{svg}</g>"
       end
 
       def visible_in_layer?(names)

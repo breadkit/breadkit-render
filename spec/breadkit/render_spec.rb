@@ -24,6 +24,21 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(REXML::XPath.match(document, "//g[@data-ref='RGB1']//*[@data-channel]").map { |node| node.attributes["data-channel"] }).to eq(%w[R G B])
   end
 
+  it "focuses a component and highlights a selected net" do
+    target = circuit.nets.find { |net| net.name == "VCC" }
+    svg = described_class.new.render(circuit, focus: "SW1", highlight_net: target.name)
+    document = REXML::Document.new(svg)
+    focused = REXML::XPath.first(document, "//g[@id='components']//g[@data-ref='SW1']")
+    other = REXML::XPath.first(document, "//g[@id='components']//g[@data-ref='D1']")
+    expect(focused.attributes["opacity"]).to be_nil
+    expect(other.attributes["opacity"]).to eq("0.18")
+    target_wire = target.members.find { |member| circuit.wires.any? { |wire| wire.id == member } }
+    wire = REXML::XPath.first(document, "//g[@id='wires']//path[@data-ref='#{target_wire}']")
+    expect(wire.parent.attributes["opacity"]).to be_nil
+    expect { described_class.new.render(circuit, focus: "missing") }.to raise_error(ArgumentError, /unknown component/)
+    expect { described_class.new.render(circuit, highlight_net: "missing") }.to raise_error(ArgumentError, /unknown net/)
+  end
+
   it "adds a bounded legend with each net name and representative wire color" do
     svg = described_class.new.render(circuit, legend: true)
     document = REXML::Document.new(svg)
@@ -489,6 +504,19 @@ RSpec.describe Breadkit::Render::CLI do
       expect(REXML::XPath.match(document, "//g[@id='legend']/text").map(&:text)).not_to include(hidden_net.name)
       expect(described_class.new.run([input, "--state", "missing", "-o", output])).to eq(2)
       expect(described_class.new.run([input, "--layer", "missing", "-o", output])).to eq(2)
+    end
+  end
+
+  it "accepts component and net emphasis through the CLI" do
+    input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    Dir.mktmpdir do |directory|
+      output = File.join(directory, "focus.svg")
+      expect(described_class.new.run([input, "--focus", "SW1", "--highlight-net", "VCC", "-o", output])).to eq(0)
+      document = REXML::Document.new(File.read(output))
+      expect(REXML::XPath.first(document, "//g[@data-ref='SW1']").attributes["opacity"]).to be_nil
+      expect(REXML::XPath.first(document, "//g[@data-ref='D1']").attributes["opacity"]).to eq("0.18")
+      expect(described_class.new.run([input, "--focus", "missing", "-o", output])).to eq(2)
+      expect(described_class.new.run([input, "--highlight-net", "missing", "-o", output])).to eq(2)
     end
   end
 

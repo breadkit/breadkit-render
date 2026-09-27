@@ -22,6 +22,8 @@ module Breadkit
           opts.on("--annotations FILE") { |value| options[:annotations] = value }
           opts.on("--state NAME") { |value| options[:state] = value }
           opts.on("--layer NAME") { |value| options[:layer] = value }
+          opts.on("--focus REF") { |value| options[:focus] = value }
+          opts.on("--highlight-net NAME") { |value| options[:highlight_net] = value }
           opts.on("--backend NAME", %w[auto rsvg vips magick]) { |value| options[:backend] = value }
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
@@ -51,7 +53,8 @@ module Breadkit
                                     show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
                                     annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
                                     interactive_layers: format == "svg" && !options[:static] && !options[:layer],
-                                    state: state, active_layer: options[:layer])
+                                    state: state, active_layer: options[:layer], focus: options[:focus],
+                                    highlight_net: options[:highlight_net])
         output = if format == "svg"
           svg
         else
