@@ -524,7 +524,9 @@ module Breadkit
                     fill: "none", stroke: @colors[:dip_notch], stroke_width: 0.8)
         pins.each do |pin, hole|
           display = display_hole(hole)
-          out << text(px(display.x), py(display.y) + (display.y > 4 ? 4 : -2), pin.number, "font-size" => 3.5, "text-anchor" => "middle")
+          number = text(px(display.x), py(display.y) + (display.y > 4 ? 4 : -2), pin.number,
+                        "font-size" => 3.5, "text-anchor" => "middle")
+          out << %(<g data-dip-pin="#{escape(component.ref)}.#{escape(pin.name)}"><title>Pin #{escape(pin.number)}: #{escape(pin.name)}</title>#{number}</g>)
         end
         out.join
       end
@@ -1005,6 +1007,11 @@ module Breadkit
             out << text(x + 15, y, net.name, "font-size" => 5.5)
             y += 9
           end
+          dip_pin_map_lines.each do |pin_line|
+            out << text(x, y, pin_line, "font-size" => 5.5)
+            y += 7
+          end
+          y += 2 unless dip_pin_map_lines.empty?
         end
         @annotations.each_with_index do |item, index|
           message = read(item, "message") || read(item, "rule")
@@ -1043,6 +1050,13 @@ module Breadkit
 
       def legend_nets
         @nets.select { |net| visible_net?(net) && !(net.members.length == 1 && net.holes.empty?) }
+      end
+
+      def dip_pin_map_lines
+        @visible_components.select { |component| component.part.data.dig("render", "shape") == "dip" }.flat_map do |component|
+          names = component.pins.values.sort_by { |pin| pin.number.to_i }.map { |pin| "#{pin.number} #{pin.name}" }
+          annotation_lines("#{component.ref} pins: #{names.join(' · ')}")
+        end
       end
 
       def annotations_svg
@@ -1247,7 +1261,7 @@ module Breadkit
       def legend_height
         return 0 unless @legend_enabled || !@annotations.empty?
 
-        20 + (@legend_enabled ? legend_nets.length * 9 : 0) +
+        20 + (@legend_enabled ? legend_nets.length * 9 + dip_pin_map_lines.length * 7 + (dip_pin_map_lines.empty? ? 0 : 2) : 0) +
           @annotations.each_with_index.sum { |item, index| annotation_lines("#{index + 1}. #{read(item, "message") || read(item, "rule")}").length * 7 + 2 }
       end
 

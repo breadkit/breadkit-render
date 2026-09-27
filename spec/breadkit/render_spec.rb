@@ -98,6 +98,16 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(REXML::XPath.match(document, "//g[@data-ref='RGB1']//*[@data-channel]").map { |node| node.attributes["data-channel"] }).to eq(%w[R G B])
   end
 
+  it "shows DIP functional pin names on hover and in the optional legend" do
+    input = File.expand_path("../../../breadkit/examples/02_555_blinker.bk.rb", __dir__)
+    document = REXML::Document.new(described_class.new.render(Breadkit.load(input), legend: true, orientation: "landscape"))
+    pins = REXML::XPath.match(document, "//g[@id='components']//g[@data-ref='U1']//g[@data-dip-pin]")
+    expect(pins.length).to eq(8)
+    expect(pins.map { |pin| pin.elements["title"].text }).to include("Pin 1: GND", "Pin 2: TRIG", "Pin 4: RESET", "Pin 8: VCC")
+    legend = REXML::XPath.match(document, "//g[@id='legend']//text").map(&:text).join(" ")
+    expect(legend).to include("U1 pins:", "1 GND", "2 TRIG", "8 VCC")
+  end
+
   it "draws TO-92 transistor and trimmer potentiometer bodies" do
     builder = Breadkit::DSL::Builder.new
     builder.instance_eval('board :mini; transistor :Q1, "BC547", pins: %w[a1 a2 a3]; pot :RV1, at: "a7"', "bodies.bk.rb", 1)

@@ -239,6 +239,8 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
 - The built-in TO-92 transistors, trimmer potentiometer, `sc56_11ewa`
   seven-segment display, and `wp154a4sureqbfzgc` RGB LED have dedicated
   diagram shapes.
+- DIP pin numbers show functional names on hover. Add `--legend` to print a
+  readable pin map below the board, such as `1 GND · 2 TRIG` for an NE555.
 - Occupied holes and connected holes have different markers. LED colors accept
   CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
   or connected hole in the SVG to see its hole ID and net.
