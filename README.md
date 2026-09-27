@@ -139,6 +139,9 @@ bundle install
 bundle exec rake
 ```
 
+Bundler uses the sibling Breadkit checkout when it is present. Packaged
+installations require Breadkit 0.2.x.
+
 ## License
 
 breadkit-render is available under the [MIT License](LICENSE.txt).
