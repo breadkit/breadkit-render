@@ -218,6 +218,8 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
 - `--diff OLD NEW` creates a two-panel HTML viewer. Removed wires are red in
   the old view and added wires are green in the new view; matching wires use
   their normal colors.
+- `--watch -o diagram.svg circuit.bk.rb` renders immediately and updates the
+  file when a circuit or part file beside the input changes. Press Ctrl-C to stop.
 - `--print-template` makes a PDF with 2.54 mm hole spacing, the complete board,
   and the print palette. Print at 100% scale; the option fixes the output scale
   to 1 and requires `rsvg-convert`.
@@ -256,6 +258,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--quality N` | `90` | JPEG and WebP quality. |
 | `--print-template` | off | Export a full-board PDF with physical hole spacing for 100% printing. |
 | `--static` | off | Omit SVG layer controls and scripts. |
+| `--watch` | off | Keep rendering to `-o PATH` when nearby circuit or part files change. |
 | `--force` | off | Draw resolved elements even when input has layout errors. |
 | `--render-timeout SECONDS` | 60 | Limit external raster conversion time. |
 

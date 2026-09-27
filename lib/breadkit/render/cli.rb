@@ -7,6 +7,7 @@ module Breadkit
   module Render
     class CLI
       def run(argv)
+        original_args = argv.dup
         options = { scale: 2.0, theme: "light", orientation: "portrait", color_by: "wire", crop: "auto", backend: "auto", quality: 90,
                     view: "breadboard", label_density: "full" }
         parser = OptionParser.new do |opts|
@@ -33,6 +34,7 @@ module Breadkit
           opts.on("--backend NAME", %w[auto rsvg vips magick]) { |value| options[:backend] = value }
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
+          opts.on("--watch") { options[:watch] = true }
           opts.on("--quality N", Integer) { |value| options[:quality] = value }
           opts.on("--print-template") { options[:print_template] = true }
           opts.on("--render-timeout SECONDS", Float) { |value| options[:render_timeout] = value }
@@ -55,6 +57,11 @@ module Breadkit
         end
         raise ArgumentError, "--background is only supported for JPEG" if options[:background] && format != "jpeg"
         raise ArgumentError, "cannot write binary image data to a terminal; use -o PATH" if !%w[svg html].include?(format) && !options[:output] && $stdout.tty?
+        if options[:watch]
+          raise ArgumentError, "--watch requires -o PATH" unless options[:output]
+          original_args.delete_at(original_args.index("--watch"))
+          return watch(input, second_input, options[:annotations], options[:output], original_args)
+        end
         return render_diff(input, second_input, options, format) if options[:diff]
         circuit = Breadkit.load(input)
         circuit.diagnostics.each do |item|
@@ -102,6 +109,35 @@ module Breadkit
       end
 
       private
+
+      def watch(input, second_input, annotations, output, args)
+        root = File.dirname(File.expand_path(input))
+        paths = [input, second_input, annotations].compact.map { |path| File.expand_path(path) }
+        snapshot = watch_snapshot(root, paths, output)
+        warn "bkrender: watching #{root}; press Ctrl-C to stop"
+        loop do
+          warn "bkrender: rendered #{output}" if run(args.dup).zero?
+          loop do
+            sleep 0.5
+            updated = watch_snapshot(root, paths, output)
+            next if updated == snapshot
+
+            snapshot = updated
+            break
+          end
+        end
+      end
+
+      def watch_snapshot(root, paths, output)
+        # ponytail: watch nearby circuit and part files; add dependency tracking if broad projects make scanning costly.
+        files = paths + Dir.glob(File.join(root, "**", "*.{bk.rb,yml,yaml,toml,json}"))
+        files.map { |path| File.expand_path(path) }.uniq.sort.reject { |path| path == File.expand_path(output) }.to_h do |path|
+          stat = File.stat(path)
+          [path, [stat.mtime.to_r, stat.size]]
+        rescue Errno::ENOENT
+          [path, nil]
+        end
+      end
 
       def validate_step_options(options, format)
         raise ArgumentError, "--step must be a positive integer" unless options[:step].positive?

@@ -598,6 +598,46 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 end
 
 RSpec.describe Breadkit::Render::CLI do
+  it "requires file output for watch and notices source changes" do
+    Dir.mktmpdir do |directory|
+      input = File.join(directory, "circuit.bk.rb")
+      included = File.join(directory, "parts.yml")
+      output = File.join(directory, "circuit.svg")
+      File.write(input, "board :mini\n")
+      File.write(included, "id: first\n")
+      cli = described_class.new
+      expect { expect(cli.run([input, "--watch"])).to eq(2) }.to output(/--watch requires -o PATH/).to_stderr
+      before = cli.send(:watch_snapshot, directory, [input], output)
+      File.write(included, "id: second\n")
+      after = cli.send(:watch_snapshot, directory, [input], output)
+      expect(after).not_to eq(before)
+      File.write(output, "generated")
+      expect(cli.send(:watch_snapshot, directory, [input], output)).to eq(after)
+    end
+  end
+
+  it "rerenders a watched file after it changes" do
+    Dir.mktmpdir do |directory|
+      input = File.join(directory, "circuit.bk.rb")
+      output = File.join(directory, "circuit.svg")
+      File.write(input, 'board :mini; resistor :R1, "330", pins: %w[a1 a3]')
+      ticks = 0
+      cli = described_class.new
+      allow(cli).to receive(:sleep) do
+        ticks += 1
+        if ticks == 1
+          File.write(input, 'board :mini; resistor :R2, "330", pins: %w[a1 a3]')
+        else
+          raise Interrupt
+        end
+      end
+
+      expect { cli.run([input, "--watch", "-o", output]) }.to raise_error(Interrupt)
+      expect(ticks).to eq(2)
+      expect(File.read(output)).to include('data-ref="R2"')
+    end
+  end
+
   it "passes label density to breadboard output and rejects it in netlist view" do
     Dir.mktmpdir do |directory|
       input = File.join(directory, "labels.bk.rb")
