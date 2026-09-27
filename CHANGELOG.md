@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Export printable assembly guides with bills of materials and staged diagrams.
 - Allow validated custom color palettes and embedded fonts in breadboard output.
 - Resolve named switch states directly and reject HTML viewers that exceed the 256-state budget.
 - Render safe custom SVG part bodies from `render.svg` fragments in part YAML.

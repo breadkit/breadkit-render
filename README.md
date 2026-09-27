@@ -256,6 +256,10 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
   their normal colors.
 - `--watch -o diagram.svg circuit.bk.rb` renders immediately and updates the
   file when a circuit or part file beside the input changes. Press Ctrl-C to stop.
+- `--assembly-guide -o guide.html circuit.bk.rb` creates a printable guide with
+  a bill of materials, one board diagram per declared `step`, and a list of
+  parts and jumper connections added at each step. The circuit must declare
+  at least one assembly step.
 - `--print-template` makes a PDF with 2.54 mm hole spacing, the complete board,
   and the print palette. Print at 100% scale; the option fixes the output scale
   to 1 and requires `rsvg-convert`.
@@ -289,6 +293,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |
 | `--state NAME` | open switches | Render a switch state such as `SW1`; net colors and switch markers follow that state. |
 | `--step N` | all steps | Render the board after assembly step `N`, with a fixed full-board frame and a visible step title. |
+| `--assembly-guide` | off | Export a standalone HTML bill of materials and diagrams for every assembly step. |
 | `--animate MODE` | steps if present, else states | For APNG, animate `steps` or `states`. APNG is available in breadboard view. |
 | `--frame-delay MS` | `800` | APNG delay per frame, from 1 to 65,535 milliseconds. |
 | `--layer NAME` | all layers | Render one named layer, including in image and PDF output. |

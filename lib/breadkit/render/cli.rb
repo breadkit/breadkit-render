@@ -32,6 +32,7 @@ module Breadkit
           opts.on("--annotations FILE") { |value| options[:annotations] = value }
           opts.on("--state NAME") { |value| options[:state] = value }
           opts.on("--step N", Integer) { |value| options[:step] = value }
+          opts.on("--assembly-guide") { options[:assembly_guide] = true }
           opts.on("--animate MODE", %w[steps states]) { |value| options[:animate] = value }
           opts.on("--frame-delay MS", Integer) { |value| options[:frame_delay] = value }
           opts.on("--layer NAME") { |value| options[:layer] = value }
@@ -56,6 +57,13 @@ module Breadkit
         raise ArgumentError, "--diff requires OLD and NEW inputs" if options[:diff] && !second_input
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
+        if options[:assembly_guide]
+          raise ArgumentError, "--assembly-guide requires HTML output" unless format == "html"
+          raise ArgumentError, "--assembly-guide requires breadboard view" unless options[:view] == "breadboard"
+          if options.values_at(:diff, :step, :state, :layer, :focus, :highlight_net, :annotations, :print_template).any?
+            raise ArgumentError, "--assembly-guide cannot select a diff, step, state, layer, focus, annotations, or print template"
+          end
+        end
         if options[:theme_file]
           custom = Theme.load(options[:theme_file])
           options[:theme], options[:theme_colors] = custom.values_at(:base, :colors)
@@ -107,6 +115,11 @@ module Breadkit
         end
         renderer = { "breadboard" => SvgRenderer, "netlist" => NetlistRenderer,
                      "schematic" => SchematicRenderer }.fetch(options[:view])
+        if options[:assembly_guide]
+          output = assembly_guide(circuit, render_options, options[:theme])
+          options[:output] ? File.binwrite(options[:output], output) : $stdout.write(output)
+          return 0
+        end
         if format == "apng"
           output = render_animation(circuit, options, render_options)
           options[:output] ? File.binwrite(options[:output], output) : $stdout.write(output)
@@ -134,6 +147,66 @@ module Breadkit
       end
 
       private
+
+      def assembly_guide(circuit, render_options, theme)
+        steps = circuit.respond_to?(:steps) ? circuit.steps : []
+        raise ArgumentError, "circuit has no assembly steps" if steps.empty?
+
+        items = circuit.components.values.group_by { |component| [component.part.id, bom_value(component)] }
+        rows = items.sort_by { |(part, value), _| [part, value.to_s] }.map do |(part, value), components|
+          cells = [components.length, part, value, components.map(&:ref).sort.join(", ")]
+          "<tr>#{cells.map { |cell| "<td>#{CGI.escapeHTML(cell.to_s)}</td>" }.join}</tr>"
+        end
+        rows << "<tr><td>#{circuit.wires.length}</td><td>Jumper wire</td><td></td><td></td></tr>"
+        panels = steps.each_with_index.map do |step, index|
+          number = index + 1
+          stage = circuit_for_step(circuit, number)
+          svg = SvgRenderer.new.render(stage, **render_options.merge(crop: "none", interactive_layers: false))
+                           .sub(/\A<\?xml[^>]*\?>\s*/, "")
+          heading = CGI.escapeHTML(step[:title] || "Assembly step")
+          added_parts = circuit.components.values.select { |component| component.step == number }.map(&:ref).sort
+          added_wires = circuit.wires.select { |wire| wire.step == number }.map { |wire| "#{wire.from} → #{wire.to}" }
+          changes = []
+          changes << "Place #{added_parts.join(', ')}" unless added_parts.empty?
+          changes.concat(added_wires.map { |wire| "Connect #{wire}" })
+          instructions = changes.map { |change| "<li>#{CGI.escapeHTML(change)}</li>" }.join
+          %(<section class="step"><h2>Step #{number} of #{steps.length}: #{heading}</h2><ul>#{instructions}</ul><div class="diagram">#{svg}</div></section>)
+        end
+        dark = theme == "dark"
+        background, surface, foreground, muted = dark ? %w[#111a16 #1d2822 #ecf5ef #b7c9bd] : %w[#f5f7f4 #ffffff #1c3026 #536a5b]
+        title = CGI.escapeHTML(circuit.title || "Breadkit assembly guide")
+        <<~HTML
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>#{title}</title>
+            <style>
+              *{box-sizing:border-box}body{margin:0;background:#{background};color:#{foreground};font:16px/1.5 system-ui,sans-serif}
+              main{max-width:1120px;margin:auto;padding:32px 20px 64px}h1{font-size:clamp(28px,4vw,44px);line-height:1.1;margin:0 0 10px}
+              .intro{color:#{muted};margin:0 0 32px}h2{font-size:22px;line-height:1.25;margin:0 0 16px}
+              section{background:#{surface};border:1px solid #{muted};border-radius:14px;padding:24px;margin:0 0 24px}
+              table{width:100%;border-collapse:collapse;text-align:left}th,td{padding:10px 12px;border-bottom:1px solid #{muted}}
+              th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#{muted}}tr:last-child td{border-bottom:0}
+              ul{margin:0 0 20px;padding-left:22px}.diagram{overflow:auto}.diagram svg{display:block;width:min(100%,560px);height:auto;margin:auto}
+              @media(max-width:600px){main{padding:20px 12px}section{padding:16px}th,td{padding:8px 5px;font-size:13px}}
+              @media print{body{background:white;color:black}main{max-width:none;padding:0}section{break-inside:avoid;border-color:#999}.step{break-before:page}}
+            </style>
+          </head>
+          <body><main><h1>#{title}</h1><p class="intro">#{steps.length} assembly steps · #{circuit.components.length} parts · #{circuit.wires.length} jumper wires</p>
+            <section><h2>Bill of materials</h2><table id="bom"><thead><tr><th>Qty</th><th>Part</th><th>Value</th><th>Refs</th></tr></thead><tbody>#{rows.join}</tbody></table></section>
+            #{panels.join("\n")}
+          </main></body></html>
+        HTML
+      end
+
+      def bom_value(component)
+        return nil unless component.value
+
+        Breadkit::Value.new(component.value, category: component.part.data.dig("render", "shape")).to_s
+      rescue ArgumentError
+        component.value.to_s
+      end
 
       def render_animation(circuit, options, render_options)
         raise ArgumentError, "APNG is available only in breadboard view" unless options[:view] == "breadboard"
