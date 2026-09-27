@@ -31,5 +31,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "breadkit", "~> 0.2.0"
+  spec.add_dependency "rexml", "~> 3.4"
 
 end
