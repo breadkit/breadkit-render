@@ -386,6 +386,14 @@ module Breadkit
       def component_labels_overlay_svg
         return "" if @label_density == "none"
 
+        @label_wire_bounds = @visible_wires.filter_map do |wire|
+          from, to = endpoint_point(wire.from), endpoint_point(wire.to)
+          next unless from && to
+
+          wire_route_points(wire, from, to).each_cons(2).map do |first, last|
+            [*([px(first[0]), px(last[0])].minmax), *([py(first[1]), py(last[1])].minmax)]
+          end
+        end
         @visible_components.filter_map do |component|
           holes = component.pins.values.filter_map { |pin| @circuit.board.hole(pin.hole_id) }
           next if holes.empty?
@@ -440,14 +448,9 @@ module Breadkit
 
       def label_wire_overlaps(bounds)
         left, top, right, bottom = bounds
-        @visible_wires.count do |wire|
-          from, to = endpoint_point(wire.from), endpoint_point(wire.to)
-          next false unless from && to
-
-          wire_route_points(wire, from, to).each_cons(2).any? do |first, last|
-            xs = [px(first[0]), px(last[0])].minmax
-            ys = [py(first[1]), py(last[1])].minmax
-            xs[0] <= right + 1 && xs[1] >= left - 1 && ys[0] <= bottom + 1 && ys[1] >= top - 1
+        @label_wire_bounds.count do |segments|
+          segments.any? do |x1, x2, y1, y2|
+            x1 <= right + 1 && x2 >= left - 1 && y1 <= bottom + 1 && y2 >= top - 1
           end
         end
       end

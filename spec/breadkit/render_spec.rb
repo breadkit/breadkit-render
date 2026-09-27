@@ -74,6 +74,20 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     expect(overlaps).to be(false)
   end
 
+  it "reuses wire geometry while placing many component labels" do
+    source = ["board :full"]
+    10.times do |index|
+      row = index * 2 + 1
+      source << %(resistor :R#{index + 1}, "330", pins: %w[a#{row} a#{row + 1}])
+      source << %(wire "f#{row}", "T+#{row}")
+    end
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval(source.join("\n"), "labels.bk.rb", 1)
+    renderer = described_class.new
+    expect(renderer).to receive(:wire_route_points).at_most(30).times.and_call_original
+    renderer.render(Breadkit::Resolver.new.call(builder.document))
+  end
+
   it "draws model-specific seven-segment and RGB LED bodies" do
     builder = Breadkit::DSL::Builder.new
     builder.instance_eval('board :full; part :SEG1, :sc56_11ewa, at: "b1"; part :RGB1, :wp154a4sureqbfzgc, pins: %w[a15 a16 a17 a18]', "displays.bk.rb", 1)
