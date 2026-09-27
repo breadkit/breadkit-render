@@ -373,7 +373,9 @@ module Breadkit
           shape = "to92" if shape == "generic" && %w[transistor 2n3904 2n3906 bc547 bc557].include?(component.part.id)
           shape = "potentiometer" if shape == "generic" && component.part.id == "pot"
           template = component.part.data.dig("render", "svg")
-          body = if template
+          body = if rail_module?(component)
+            rail_module_svg(component, pins)
+          elsif template
             values = { "ref" => component.ref, "value" => component.value,
                        "fill" => component.part.data.dig("render", "fill") || @colors[:component_bg],
                        "stroke" => component.part.data.dig("render", "stroke") || @colors[:component_border],
@@ -618,6 +620,59 @@ module Breadkit
         width, height = width_mm / 2.54, height_mm / 2.54
         center_x, center_y = (xs.min + xs.max) / 2.0 + offset_x, (ys.min + ys.max) / 2.0 + offset_y
         [center_x - width / 2, center_y - height / 2, width, height]
+      end
+
+      def rail_module?(component)
+        definitions = component.part.data["pins"] || []
+        !definitions.empty? && definitions.all? { |pin| pin["mount"] == "rail" }
+      end
+
+      def rail_module_bounds(pins)
+        xs = pins.map { |_pin, hole| hole.x }
+        ys = pins.map { |_pin, hole| hole.y }
+        board_left, board_right = @board_extents.fetch(:x)
+        width, height = 15.0, 8.3
+        x = xs.sum / xs.length.to_f <= (board_left + board_right) / 2.0 ? board_left - 17.5 : board_right + 2.5
+        [x, (ys.min + ys.max) / 2.0 - height / 2, width, height]
+      end
+
+      def rail_pin_label(pin, index)
+        { "LEFT_POS" => "L+", "LEFT_GND" => "L−", "RIGHT_POS" => "R+", "RIGHT_GND" => "R−" }.fetch(pin.name) { ("A".ord + index).chr }
+      end
+
+      def rail_module_svg(component, pins)
+        x, y, width, height = rail_module_bounds(pins)
+        title = component.part.data.dig("render", "label") || component.part.id
+        out = ["<title>#{escape(title)} · logical pin map; verify physical fit</title>",
+               rect(px(x), py(y + height), px(width), px(height), rx: 3,
+                    fill: @colors[:module_bg], stroke: @colors[:module_border], stroke_width: 1,
+                    data_ref: component.ref)]
+        out << text(px(x + 0.6), py(y + height - 1.0), component.ref, "font-size" => 9,
+                    "font-weight" => 700, "fill" => @colors[:text])
+        out << text(px(x + 0.6), py(y + height - 1.8), "Logical pins · verify fit", "font-size" => 7,
+                    "fill" => @colors[:label])
+        master = read(component.attrs, "master")
+        left = read(component.attrs, "left")
+        right = read(component.attrs, "right")
+        if master || left || right
+          mode = ->(value) { { "v3_3" => "3.3 V", "v5" => "5 V", "off" => "OFF" }.fetch(value.to_s, value.to_s) }
+          out << text(px(x + 0.6), py(y + height - 2.55), "Master #{master.to_s.upcase} · Left #{mode.call(left)}", "font-size" => 6.2,
+                      "fill" => @colors[:text])
+          out << text(px(x + 0.6), py(y + height - 3.25), "Right #{mode.call(right)}", "font-size" => 6.2,
+                      "fill" => @colors[:text])
+        end
+        pins.each_with_index do |(pin, hole), index|
+          display = display_hole(hole)
+          color = MODULE_PIN_COLORS.fetch(pin.role.to_s, @colors[:lead])
+          short = rail_pin_label(pin, index)
+          out << circle(px(display.x), py(display.y), 5, fill: color, stroke: @colors[:module_border],
+                        stroke_width: 0.8, data_pin: "#{component.ref}.#{pin.name}")
+          out << text(px(display.x), py(display.y) + 1.7, short, "font-size" => 5.2,
+                      "font-weight" => 700, "fill" => "#ffffff", "text-anchor" => "middle")
+          out << text(px(x + 0.6), py(y + height - 4.2 - index * 0.85),
+                      "#{short}  #{pin.name}  #{hole.id}", "font-size" => 7, "fill" => @colors[:text])
+        end
+        %(<g data-rail-module="logical">#{out.join}</g>)
       end
 
       def switch_svg(component, pins, x, y)
@@ -1126,6 +1181,11 @@ module Breadkit
           module_points = wire_points + @visible_components.flat_map do |component|
             if component.part.placement == "offboard"
               offboard_bounds(component)
+            elsif rail_module?(component)
+              pins = component.pins.values.filter_map { |pin| [pin, @circuit.board.hole(pin.hole_id)] if pin.hole_id }
+              next [] if pins.empty?
+              x, y, module_width, module_height = rail_module_bounds(pins)
+              [[x, y], [x + module_width, y + module_height]]
             elsif component.part.data.dig("render", "shape") == "module"
               pins = component.pins.values.filter_map { |pin| [pin, @circuit.board.hole(pin.hole_id)] if pin.hole_id }
               next [] if pins.empty?
@@ -1155,6 +1215,12 @@ module Breadkit
         points.concat(@visible_components.select { |component| component.part.placement == "offboard" }
                               .flat_map { |component| offboard_bounds(component) })
         points.concat(@visible_components.flat_map do |component|
+          if rail_module?(component)
+            pins = component.pins.values.filter_map { |pin| [pin, @circuit.board.hole(pin.hole_id)] if pin.hole_id }
+            next [] if pins.empty?
+            x, y, width, height = rail_module_bounds(pins)
+            next [[x, y], [x + width, y + height]]
+          end
           next [] unless component.part.data.dig("render", "shape") == "module"
           pins = component.pins.values.filter_map { |pin| [pin, @circuit.board.hole(pin.hole_id)] if pin.hole_id }
           next [] if pins.empty?
@@ -1219,7 +1285,7 @@ module Breadkit
 
       def auto_obstacles
         @visible_components.filter_map do |component|
-          next if component.part.placement == "offboard"
+          next if component.part.placement == "offboard" || rail_module?(component)
           pins = component.pins.values.filter_map { |pin| @circuit.board.hole(pin.hole_id) }
           next if pins.empty?
 

@@ -527,6 +527,34 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     end
   end
 
+  it "shows rail-mounted modules as logical edge pin maps without a guessed footprint" do
+    Dir.mktmpdir do |dir|
+      input = File.join(dir, "rail.bk.rb")
+      File.write(input, <<~RUBY)
+        board :full
+        part :PS1, :shillehtek_mb102_4pin,
+             pins: {LEFT_POS: "T+1", LEFT_GND: "T-1", RIGHT_POS: "B+1", RIGHT_GND: "B-1"},
+             master: :on, left: :v3_3, right: :v5
+      RUBY
+      circuit = Breadkit.load(input)
+      expect(circuit.diagnostics).to be_empty
+      document = REXML::Document.new(described_class.new.render(circuit, orientation: "landscape"))
+      group = REXML::XPath.first(document, "//g[@id='components']//g[@data-rail-module='logical']")
+      expect(group).not_to be_nil
+      labels = group.elements.to_a("text").map(&:text).join(" ")
+      expect(labels).to include("Logical pins", "LEFT_POS", "T+1", "RIGHT_GND", "B-1", "L+", "R−", "Left 3.3 V", "Right 5 V")
+      expect(labels).not_to match(/\b[1-4]\s+LEFT_POS/)
+      expect(group.elements.to_a("text").map { |text| text.attributes["font-size"].to_f }.min).to be >= 5.2
+      expect(group.elements.to_a("line")).to be_empty
+      board = REXML::XPath.first(document, "//g[@id='board']/rect")
+      card = group.elements["rect"]
+      expect(card.attributes["x"].to_f + card.attributes["width"].to_f).to be < board.attributes["x"].to_f
+      expect(group.elements.to_a("circle").map { |circle| circle.attributes["data-pin"] }).to match_array(
+        %w[PS1.LEFT_POS PS1.LEFT_GND PS1.RIGHT_POS PS1.RIGHT_GND]
+      )
+    end
+  end
+
   it "maps resistor values to the expected four-band colors" do
     renderer = described_class.new
     colors = %w[#000000 #8b4513 #ff0000 #ff8c00 #ffff00 #008000 #0000ff #800080 #808080 #ffffff]

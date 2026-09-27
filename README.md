@@ -233,6 +233,9 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
   four color bands by default; `bands: 5` selects five.
 - Footprint module bodies follow the DSL's `rotate:` and `mirror:` placement
   options, including asymmetric body offsets and labeled pins.
+- Rail-mounted parts defined with `mount: rail` on every pin appear as logical
+  pin maps at the board edge. Numbered markers identify the explicitly chosen
+  rail holes. The map does not claim a physical footprint or verified fit.
 - The built-in TO-92 transistors, trimmer potentiometer, `sc56_11ewa`
   seven-segment display, and `wp154a4sureqbfzgc` RGB LED have dedicated
   diagram shapes.
