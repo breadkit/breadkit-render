@@ -62,6 +62,7 @@ Choose a theme, add net labels, or export a raster image:
 ```sh
 bkrender circuit.bk.rb -o circuit.svg --theme dark --show-nets --legend
 bkrender circuit.bk.rb -o circuit.png --scale 3
+bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender circuit.bk.rb --format svg > circuit.svg
 ```
 
@@ -88,6 +89,8 @@ PNG and JPEG need a raster backend; SVG works without one.
   `--layer "2 I2C"` keeps one named layer in static SVG, PNG, or JPEG output.
 - `--focus R1` dims other components and unrelated wires.
   `--highlight-net VCC` emphasizes the selected net and its connected parts.
+- HTML output provides a standalone viewer with zoom, pan, layer controls, and
+  net highlighting on hover.
 
 The demo was generated with:
 
@@ -100,8 +103,8 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `-o, --output PATH` | stdout | Write to a file; `.svg`, `.png`, `.jpg`, and `.jpeg` select the format. |
-| `-f, --format FORMAT` | inferred or `svg` | `svg`, `png`, or `jpeg`. Conflicting extensions are errors. |
+| `-o, --output PATH` | stdout | Write to a file; `.svg`, `.html`, `.png`, `.jpg`, and `.jpeg` select the format. |
+| `-f, --format FORMAT` | inferred or `svg` | `svg`, `html`, `png`, or `jpeg`. Conflicting extensions are errors. |
 | `--scale N` | `2` | Raster output scale. |
 | `--theme NAME` | `light` | `light`, `dark`, or `print`. |
 | `--orientation NAME` | `portrait` | `portrait` or `landscape`. |

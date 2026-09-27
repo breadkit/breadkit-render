@@ -10,7 +10,7 @@ module Breadkit
         parser = OptionParser.new do |opts|
           opts.banner = "Usage: bkrender [options] INPUT"
           opts.on("-o", "--output PATH") { |value| options[:output] = value }
-          opts.on("-f", "--format FORMAT", %w[svg png jpeg jpg]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
+          opts.on("-f", "--format FORMAT", %w[svg html png jpeg jpg]) { |value| options[:format] = value == "jpg" ? "jpeg" : value }
           opts.on("--scale N", Float) { |value| options[:scale] = value }
           opts.on("--theme NAME", %w[light dark print]) { |value| options[:theme] = value }
           opts.on("--orientation NAME", %w[portrait landscape]) { |value| options[:orientation] = value }
@@ -39,7 +39,7 @@ module Breadkit
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
         raise ArgumentError, "--background is only supported for JPEG" if options[:background] && format != "jpeg"
-        raise ArgumentError, "cannot write binary image data to a terminal; use -o PATH" if format != "svg" && !options[:output] && $stdout.tty?
+        raise ArgumentError, "cannot write binary image data to a terminal; use -o PATH" if !%w[svg html].include?(format) && !options[:output] && $stdout.tty?
         circuit = Breadkit.load(input)
         circuit.diagnostics.each do |item|
           location = [item.location&.path, item.location&.line].compact.join(":")
@@ -52,11 +52,12 @@ module Breadkit
         svg = SvgRenderer.new.render(circuit, crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
                                     show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
                                     annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
-                                    interactive_layers: format == "svg" && !options[:static] && !options[:layer],
+                                    interactive_layers: %w[svg html].include?(format) && !options[:static] && !options[:layer],
                                     state: state, active_layer: options[:layer], focus: options[:focus],
                                     highlight_net: options[:highlight_net])
-        output = if format == "svg"
-          svg
+        output = case format
+        when "svg" then svg
+        when "html" then html_viewer(svg, theme: options[:theme])
         else
           Rasterizer.new.rasterize(svg, format: format, scale: options[:scale],
                                    background: options[:background] || "white", quality: options[:quality], backend: options[:backend],
@@ -76,7 +77,7 @@ module Breadkit
 
       def output_format(options)
         extension = File.extname(options[:output].to_s).downcase
-        from_path = { ".svg" => "svg", ".png" => "png", ".jpg" => "jpeg", ".jpeg" => "jpeg" }[extension]
+        from_path = { ".svg" => "svg", ".html" => "html", ".png" => "png", ".jpg" => "jpeg", ".jpeg" => "jpeg" }[extension]
         raise ArgumentError, "unsupported output extension: #{extension}" if options[:output] && !from_path
         if options[:format] && from_path && options[:format] != from_path
           raise ArgumentError, "--format conflicts with output extension"
@@ -92,6 +93,55 @@ module Breadkit
         match = files.find { |file| File.expand_path(file["path"].to_s) == File.expand_path(input) }
         match ||= files.first if files.length == 1
         Array(match && match["offenses"])
+      end
+
+      def html_viewer(svg, theme:)
+        background = theme == "dark" ? "#151d19" : "#f1f4f1"
+        foreground = theme == "dark" ? "#ecf3ee" : "#203029"
+        diagram = svg.sub(/\A<\?xml[^>]*\?>\s*/, "")
+        <<~HTML
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Breadkit diagram</title>
+            <style>
+              *{box-sizing:border-box}body{margin:0;background:#{background};color:#{foreground};font:14px system-ui,sans-serif}
+              #viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;cursor:grab}#viewport.dragging{cursor:grabbing}
+              #scene{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}#scene svg{display:block;max-width:none}
+              .net-muted{opacity:.18!important}
+              #toolbar{position:fixed;z-index:2;top:16px;right:16px;display:flex;gap:4px;padding:4px;border:1px solid currentColor;border-radius:8px;background:#{background}}
+              button{color:inherit;background:transparent;border:0;border-radius:4px;min-width:36px;height:32px;font:inherit;cursor:pointer}button:hover,button:focus-visible{outline:2px solid currentColor}
+            </style>
+          </head>
+          <body>
+            <div id="viewport" aria-label="Interactive breadboard diagram"><div id="scene">#{diagram}</div></div>
+            <div id="toolbar" role="toolbar" aria-label="Diagram zoom">
+              <button type="button" data-action="in" aria-label="Zoom in">+</button>
+              <button type="button" data-action="out" aria-label="Zoom out">−</button>
+              <button type="button" data-action="fit" aria-label="Fit diagram">Fit</button>
+            </div>
+            <script>
+              const viewport=document.getElementById('viewport'),scene=document.getElementById('scene'),svg=scene.querySelector('svg');
+              let scale=1,x=0,y=0,dragging=false,lastX=0,lastY=0,activeNet=null;
+              const paint=()=>{scene.style.transform=`translate(${x}px,${y}px) scale(${scale})`};
+              const fit=()=>{const w=Number(svg.getAttribute('width')),h=Number(svg.getAttribute('height'));
+                scale=Math.min((viewport.clientWidth-32)/w,(viewport.clientHeight-32)/h);x=(viewport.clientWidth-w*scale)/2;y=(viewport.clientHeight-h*scale)/2;paint()};
+              const zoom=(factor,cx,cy)=>{const next=Math.max(.1,Math.min(12,scale*factor));x=cx-(cx-x)*next/scale;y=cy-(cy-y)*next/scale;scale=next;paint()};
+              viewport.addEventListener('wheel',event=>{event.preventDefault();const box=viewport.getBoundingClientRect();zoom(event.deltaY<0?1.15:1/1.15,event.clientX-box.left,event.clientY-box.top)},{passive:false});
+              viewport.addEventListener('pointerdown',event=>{if(event.target.closest('[data-layer-button]'))return;dragging=true;lastX=event.clientX;lastY=event.clientY;viewport.classList.add('dragging');viewport.setPointerCapture(event.pointerId)});
+              viewport.addEventListener('pointermove',event=>{if(dragging){x+=event.clientX-lastX;y+=event.clientY-lastY;lastX=event.clientX;lastY=event.clientY;paint();return}
+                const net=event.target.closest('[data-net]')?.getAttribute('data-net')||null;if(net===activeNet)return;activeNet=net;
+                scene.querySelectorAll('[data-net]').forEach(node=>node.classList.toggle('net-muted',!!net&&node.getAttribute('data-net')!==net))});
+              const endDrag=()=>{dragging=false;viewport.classList.remove('dragging')};viewport.addEventListener('pointerup',endDrag);viewport.addEventListener('pointercancel',endDrag);
+              viewport.addEventListener('pointerleave',()=>{if(dragging)return;activeNet=null;scene.querySelectorAll('.net-muted').forEach(node=>node.classList.remove('net-muted'))});
+              document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>{const action=button.getAttribute('data-action');if(action==='fit')fit();else zoom(action==='in'?1.25:.8,viewport.clientWidth/2,viewport.clientHeight/2)}));
+              window.addEventListener('resize',fit);fit();
+            </script>
+          </body>
+          </html>
+        HTML
       end
     end
   end

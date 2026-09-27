@@ -520,6 +520,17 @@ RSpec.describe Breadkit::Render::CLI do
     end
   end
 
+  it "writes a standalone HTML viewer with zoom and net hover" do
+    input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    Dir.mktmpdir do |directory|
+      output = File.join(directory, "circuit.html")
+      expect(described_class.new.run([input, "--theme", "dark", "-o", output])).to eq(0)
+      html = File.read(output)
+      expect(html).to include("<!doctype html>", "id=\"viewport\"", "data-net=\"VCC\"", "aria-label=\"Zoom in\"")
+      expect(html).not_to include("<?xml")
+    end
+  end
+
   it "passes the selected rail pattern through to SVG output" do
     input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
     Dir.mktmpdir do |directory|

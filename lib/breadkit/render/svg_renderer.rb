@@ -250,6 +250,7 @@ module Breadkit
           class_name = used ? " class=\"o\" data-occupied=\"true\"" : (connected ? " class=\"c\"" : "")
           class_name += " data-connected=\"true\"" if connected
           attrs = "href=\"##{dot}\" x=\"#{coord(px(display.x))}\" y=\"#{coord(py(display.y))}\" data-hole=\"#{escape(hole.id)}\"#{class_name}"
+          attrs += " data-net=\"#{escape(@nets_by_hole[hole.id].name)}\"" if @nets_by_hole[hole.id]
           if used || connected
             title = [hole.id, @nets_by_hole[hole.id]&.name].compact.join(" / ")
             "<use #{attrs}><title>#{escape(title)}</title></use>"
@@ -489,7 +490,8 @@ module Breadkit
             pin_x, pin_y = offboard_pin_point(component, index)
             pin_color = MODULE_PIN_COLORS.fetch(pin.role.to_s, @colors[:lead])
             out << circle(px(pin_x), py(pin_y), 1.7, fill: pin_color, stroke: @colors[:module_bg],
-                          stroke_width: 0.6, data_pin: "#{component.ref}.#{pin.name}", data_pin_type: pin.role)
+                          stroke_width: 0.6, data_pin: "#{component.ref}.#{pin.name}", data_pin_type: pin.role,
+                          data_net: @nets_by_member["#{component.ref}.#{pin.name}"]&.name)
             references = ["#{component.ref}.#{pin.name}", "#{component.ref}.#{pin.number}"]
             connected = references.any? { |reference| @wire_endpoint_refs.key?(reference) }
             label_side = component.attrs[:side].to_s == "left"
@@ -560,7 +562,8 @@ module Breadkit
             ""
           end
           casing = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{@colors[:board]}\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
-          wire_svg = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{escape(color)}\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" data-ref=\"#{escape(wire.id)}\"#{dash}/>"
+          net_attr = @nets_by_member[wire.id] ? " data-net=\"#{escape(@nets_by_member[wire.id].name)}\"" : ""
+          wire_svg = "<path d=\"#{path}\" fill=\"none\" stroke=\"#{escape(color)}\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" data-ref=\"#{escape(wire.id)}\"#{net_attr}#{dash}/>"
           dots = [from, to].uniq.map do |x, y|
             circle(px(x), py(y), 2.8, fill: color, stroke: @colors[:board], stroke_width: 1.2,
                    data_wire: wire.id)
