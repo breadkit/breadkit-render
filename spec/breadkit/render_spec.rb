@@ -83,7 +83,7 @@ RSpec.describe Breadkit::Render::SvgRenderer do
       expect(wires.map { |wire| wire.attributes["data-ref"] }).to eq(%w[W1 W2])
       expect(wires.map { |wire| wire.attributes["d"].split.last }).to eq(%w[80.00 70.00])
       expect(document.root.attributes["data-rail-pattern"]).to eq("+--+")
-      holes = REXML::XPath.first(document, "//g[@id='holes']").elements.to_a("circle").map { |hole| hole.attributes["data-hole"] }
+      holes = REXML::XPath.first(document, "//g[@id='holes']").elements.to_a("use").map { |hole| hole.attributes["data-hole"] }
       expect(holes).to include("u1", "PWR1", "RET1")
     end
   end
@@ -172,14 +172,13 @@ RSpec.describe Breadkit::Render::SvgRenderer do
   it "uses state-specific nets for annotation targets and wraps wide glyphs" do
     annotations = [{ "state" => "SW1", "message" => "MW😀漢" * 35, "targets" => { "nets" => ["VCC"] } }]
     document = REXML::Document.new(described_class.new.render(circuit, annotations: annotations))
-    markers = REXML::XPath.first(document, "//g[@id='annotations']").elements.to_a("circle")
+    outline = REXML::XPath.first(document, "//g[@id='annotations']/rect[@data-net='VCC']")
     target = circuit.board.hole("a12")
     legend = document.root.elements["g[@id='legend']"]
 
-    expect(markers.any? do |circle|
-      (circle.attributes["cx"].to_f - target.x * 10).abs < 0.01 &&
-        (circle.attributes["cy"].to_f - (circuit.board.height - 1 - target.y) * 10).abs < 0.01
-    end).to be(true)
+    expect(outline).not_to be_nil
+    expect(outline.attributes["x"].to_f).to be <= target.x * 10
+    expect(outline.attributes["x"].to_f + outline.attributes["width"].to_f).to be >= target.x * 10
     expect(legend.elements.to_a("text").length).to be > 3
     expect(legend.elements.to_a("text").all? { |line| line.text.length < 35 }).to be(true)
   end
@@ -194,6 +193,21 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 
     expect(net.holes).to be_empty
     expect(REXML::XPath.first(REXML::Document.new(svg), "//g[@id='annotations']/text").text).to eq("1")
+  end
+
+  it "marks offboard modules and pins without circling every hole in a large net" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :half; offboard :UNO, "arduino_uno"; wire "UNO.D13", "B+1"', "targets.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    net = diagram.nets.find { |item| item.members.include?("W1") }
+    annotations = [{ "targets" => { "pins" => ["UNO.D13"], "components" => ["UNO"], "nets" => [net.name] } }]
+    document = REXML::Document.new(described_class.new.render(diagram, annotations: annotations))
+    group = REXML::XPath.first(document, "//g[@id='annotations']")
+
+    expect(group.elements["circle[@data-pin='UNO.D13']"]).not_to be_nil
+    expect(group.elements["rect[@data-component='UNO']"]).not_to be_nil
+    expect(group.elements["rect[@data-net='#{net.name}']"]).not_to be_nil
+    expect(group.elements.to_a("circle").length).to be < net.holes.length
   end
 
   it "uses automatic wire colors and reads annotations from bklint JSON" do
@@ -322,13 +336,14 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 
   it "marks occupied holes separately from connected strips" do
     document = REXML::Document.new(described_class.new.render(circuit))
-    occupied = REXML::XPath.first(document, "//circle[@data-hole='a12']")
-    connected = REXML::XPath.first(document, "//circle[@data-hole='b12']")
+    occupied = REXML::XPath.first(document, "//use[@data-hole='a12']")
+    connected = REXML::XPath.first(document, "//use[@data-hole='b12']")
 
     expect(occupied.attributes["data-occupied"]).to eq("true")
     expect(connected.attributes["data-connected"]).to eq("true")
     expect(connected.attributes["data-occupied"]).to be_nil
-    expect(occupied.attributes["fill"]).not_to eq(connected.attributes["fill"])
+    expect(occupied.attributes["class"]).not_to eq(connected.attributes["class"])
+    expect(connected.elements["title"].text).to include("b12")
   end
 
   it "uses theme colors and supports named or hexadecimal LED colors" do
@@ -347,7 +362,16 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     diagram.components["D1"].attrs[:color] = :rebeccapurple
     expect(described_class.new.render(diagram)).to include('fill="rebeccapurple"')
     diagram.components["D1"].attrs[:color] = :notacolor
-    expect { described_class.new.render(diagram) }.to raise_error(Breadkit::Render::Error, /invalid LED color: notacolor/)
+    expect(described_class.new.render(diagram)).to include('fill="#df5550"')
+  end
+
+  it "replaces invalid wire colors with a visible fallback" do
+    builder = Breadkit::DSL::Builder.new
+    builder.instance_eval('board :mini; wire "a1", "a2", color: :rde', "colors.bk.rb", 1)
+    diagram = Breadkit::Resolver.new.call(builder.document)
+    wire = REXML::XPath.first(REXML::Document.new(described_class.new.render(diagram)), "//g[@id='wires']/path[@data-ref='W1']")
+
+    expect(wire.attributes["stroke"]).to eq("#d62728")
   end
 
   it "separates overlapping offboard rail wires and reuses clear tracks" do
@@ -366,7 +390,7 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 
   it "assigns bounded net colors and a separate negative-voltage color" do
     builder = Breadkit::DSL::Builder.new
-    builder.instance_eval('board :half; supply :NEG, voltage: -5, plus: "B+1", minus: "B-1"; net :GND, at: "B-1"; wire "a1", "B+1"',
+    builder.instance_eval('board :half; supply :POS, voltage: 5, plus: "T+1", minus: "B-1"; supply :NEG, voltage: 5, plus: "B-2", minus: "B+1"; net :GND, at: "B-1"; wire "a1", "B+2"',
                           "negative.bk.rb", 1)
     diagram = Breadkit::Resolver.new.call(builder.document)
     svg = described_class.new.render(diagram, color_by: "net")
@@ -382,6 +406,18 @@ RSpec.describe Breadkit::Render::SvgRenderer do
 end
 
 RSpec.describe Breadkit::Render::CLI do
+  it "prints warnings and forced errors to stderr" do
+    input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    diagram = Breadkit.load(input)
+    diagram.diagnostics << Breadkit::Diagnostic.new(code: "warning", severity: "warning", message: "check value", location: nil, targets: [])
+    diagram.diagnostics << Breadkit::Diagnostic.new(code: "error", severity: "error", message: "bad wire", location: nil, targets: [])
+    allow(Breadkit).to receive(:load).and_return(diagram)
+
+    Dir.mktmpdir do |directory|
+      expect { expect(described_class.new.run([input, "--force", "-o", File.join(directory, "forced.svg")])).to eq(0) }
+        .to output(/warning: check value.*error: bad wire/m).to_stderr
+    end
+  end
   it "treats unknown diagnostic severities as errors" do
     input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
     diagram = Breadkit.load(input)
@@ -409,6 +445,19 @@ RSpec.describe Breadkit::Render::CLI do
       expect(described_class.new.run([input, "--static", "-o", output])).to eq(0)
       svg = File.read(output)
       expect(svg).not_to include("<script", "data-layer-button")
+    end
+  end
+
+  it "renders selected switch states and layers in static output" do
+    Dir.mktmpdir do |directory|
+      input, output = File.join(directory, "layers.bk.rb"), File.join(directory, "layers.svg")
+      File.write(input, 'board :half; button :SW1, at: "e10"; wire "a1", "a2", layer: "Power"; wire "a3", "a4", layer: "Signal"')
+      expect(described_class.new.run([input, "--state", "SW1", "--layer", "Power", "-o", output])).to eq(0)
+      svg = File.read(output)
+      expect(svg).to include('data-state="SW1"', 'data-ref="W1"')
+      expect(svg).not_to include('data-ref="W2"', "<script")
+      expect(described_class.new.run([input, "--state", "missing", "-o", output])).to eq(2)
+      expect(described_class.new.run([input, "--layer", "missing", "-o", output])).to eq(2)
     end
   end
 
@@ -446,6 +495,13 @@ RSpec.describe Breadkit::Render::CLI do
     expect { rasterizer.rasterize("", format: "png", scale: Float::INFINITY) }.to raise_error(Breadkit::Render::Error, /scale/)
     expect { rasterizer.rasterize("", format: "png", quality: 101) }.to raise_error(Breadkit::Render::Error, /quality/)
     expect { rasterizer.rasterize("", format: "png", backend: "unknown") }.to raise_error(Breadkit::Render::Error, /unsupported raster backend/)
+    expect { rasterizer.rasterize("", format: "png", timeout: 0) }.to raise_error(Breadkit::Render::Error, /timeout/)
+  end
+
+  it "stops external raster commands after the requested timeout" do
+    rasterizer = Breadkit::Render::Rasterizer.new
+    expect { rasterizer.send(:capture_command, RbConfig.ruby, "-e", "sleep 2", svg: "", timeout: 0.05) }
+      .to raise_error(Breadkit::Render::Error, /timed out/)
   end
 
   it "parses white and hex JPEG backgrounds for libvips" do

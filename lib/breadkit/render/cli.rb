@@ -20,10 +20,13 @@ module Breadkit
           opts.on("--legend") { options[:legend] = true }
           opts.on("--crop MODE", %w[auto none]) { |value| options[:crop] = value }
           opts.on("--annotations FILE") { |value| options[:annotations] = value }
+          opts.on("--state NAME") { |value| options[:state] = value }
+          opts.on("--layer NAME") { |value| options[:layer] = value }
           opts.on("--backend NAME", %w[auto rsvg vips magick]) { |value| options[:backend] = value }
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
           opts.on("--quality N", Integer) { |value| options[:quality] = value }
+          opts.on("--render-timeout SECONDS", Float) { |value| options[:render_timeout] = value }
           opts.on("--force") { options[:force] = true }
           opts.on("-v", "--version") { puts "bkrender #{VERSION}"; return 0 }
           opts.on("-h", "--help") { puts opts; return 0 }
@@ -36,23 +39,25 @@ module Breadkit
         raise ArgumentError, "--background is only supported for JPEG" if options[:background] && format != "jpeg"
         raise ArgumentError, "cannot write binary image data to a terminal; use -o PATH" if format != "svg" && !options[:output] && $stdout.tty?
         circuit = Breadkit.load(input)
-        errors = circuit.diagnostics.reject { |item| %w[warning info].include?(item.severity) }
-        if !errors.empty? && !options[:force]
-          errors.each do |item|
-            location = [item.location&.path, item.location&.line].compact.join(":")
-            warn [location, item.message].compact.reject(&:empty?).join(": ")
-          end
-          return 1
+        circuit.diagnostics.each do |item|
+          location = [item.location&.path, item.location&.line].compact.join(":")
+          warn [location, item.severity || "error", item.message].reject { |value| value.nil? || value.empty? }.join(": ")
         end
+        errors = circuit.diagnostics.reject { |item| %w[warning info].include?(item.severity) }
+        return 1 if !errors.empty? && !options[:force]
+        state = circuit.states("all").find { |candidate| candidate.name == options[:state] } if options[:state]
+        raise ArgumentError, "unknown circuit state: #{options[:state]}" if options[:state] && !state
         svg = SvgRenderer.new.render(circuit, crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
                                     show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
                                     annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
-                                    interactive_layers: format == "svg" && !options[:static])
+                                    interactive_layers: format == "svg" && !options[:static] && !options[:layer],
+                                    state: state, active_layer: options[:layer])
         output = if format == "svg"
           svg
         else
           Rasterizer.new.rasterize(svg, format: format, scale: options[:scale],
-                                   background: options[:background] || "white", quality: options[:quality], backend: options[:backend])
+                                   background: options[:background] || "white", quality: options[:quality], backend: options[:backend],
+                                   timeout: options[:render_timeout] || 60)
         end
         options[:output] ? File.binwrite(options[:output], output) : $stdout.write(output)
         0

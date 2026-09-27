@@ -16,7 +16,9 @@ module Breadkit
         ?color_by: String,
         ?annotations: Array[Hash[String, untyped]],
         ?rail_pattern: String?,
-        ?interactive_layers: bool
+        ?interactive_layers: bool,
+        ?state: Breadkit::State?,
+        ?active_layer: String?
       ) -> String
     end
 
@@ -27,7 +29,8 @@ module Breadkit
         ?scale: Float,
         ?background: String,
         ?quality: Integer,
-        ?backend: String
+        ?backend: String,
+        ?timeout: Float | Integer
       ) -> String
     end
 

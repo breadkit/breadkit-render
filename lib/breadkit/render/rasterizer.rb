@@ -3,7 +3,7 @@
 module Breadkit
   module Render
     class Rasterizer
-      def rasterize(svg, format:, scale: 2.0, background: "white", quality: 90, backend: "auto")
+      def rasterize(svg, format:, scale: 2.0, background: "white", quality: 90, backend: "auto", timeout: 60)
         format = format.to_s
         backend = backend.to_s
         raise Error, "unsupported raster format: #{format}" unless %w[png jpeg].include?(format)
@@ -16,6 +16,7 @@ module Breadkit
         end
         raise Error, "scale must be a positive finite number" unless scale.finite? && scale.positive?
         raise Error, "quality must be an integer between 0 and 100" unless quality.is_a?(Integer) && quality.between?(0, 100)
+        raise Error, "render timeout must be a positive finite number" unless timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?
         background = color(background) if format == "jpeg"
 
         candidates = case backend
@@ -27,7 +28,7 @@ module Breadkit
         candidates.each do |name|
           next unless supports?(name, format)
           begin
-            return send(name, svg, format, scale, background, quality)
+            return send(name, svg, format, scale, background, quality, timeout)
           rescue Error
             raise if backend != "auto"
           end
@@ -47,13 +48,13 @@ module Breadkit
         false
       end
 
-      def rsvg(svg, _format, scale, _background, _quality)
-        stdout, stderr, status = Open3.capture3(executable("rsvg-convert"), "--format=png", "--zoom=#{scale}", stdin_data: svg, binmode: true)
+      def rsvg(svg, _format, scale, _background, _quality, timeout)
+        stdout, stderr, status = capture_command(executable("rsvg-convert"), "--format=png", "--zoom=#{scale}", svg: svg, timeout: timeout)
         raise Error, "rsvg-convert failed: #{stderr}" unless status.success?
         stdout
       end
 
-      def magick(svg, format, scale, background, quality)
+      def magick(svg, format, scale, background, quality, timeout)
         command = magick_command
         background_color = format == "png" ? "none" : "##{background.map { |channel| channel.to_s(16).rjust(2, "0") }.join}"
         args = ["-density", (96 * scale).to_s, "-background", background_color]
@@ -63,12 +64,12 @@ module Breadkit
         args += ["-background", background_color, "-alpha", "remove"] if format == "jpeg"
         args += ["-quality", quality.to_s] if format == "jpeg"
         args << "#{format}:-"
-        stdout, stderr, status = Open3.capture3(command, *args, stdin_data: svg, binmode: true)
+        stdout, stderr, status = capture_command(command, *args, svg: svg, timeout: timeout)
         raise Error, "ImageMagick failed: #{stderr}" unless status.success?
         stdout
       end
 
-      def vips(svg, format, scale, background, quality)
+      def vips(svg, format, scale, background, quality, _timeout)
         image = Vips::Image.svgload_buffer(svg, scale: scale.to_f)
         if format == "jpeg"
           image = image.flatten(background: background) if image.has_alpha?
@@ -78,6 +79,35 @@ module Breadkit
         end
       rescue StandardError => e
         raise Error, "libvips failed: #{e.message}"
+      end
+
+      def capture_command(*command, svg:, timeout:)
+        Open3.popen3(*command) do |stdin, stdout, stderr, process|
+          [stdin, stdout, stderr].each(&:binmode)
+          writer = Thread.new do
+            stdin.write(svg)
+          rescue Errno::EPIPE, IOError
+            nil
+          ensure
+            stdin.close
+          end
+          output = Thread.new { stdout.read }
+          errors = Thread.new { stderr.read }
+          unless process.join(timeout)
+            begin
+              Process.kill("KILL", process.pid)
+            rescue Errno::ESRCH
+              nil
+            end
+            process.join
+            raise Error, "#{File.basename(command.first)} timed out after #{timeout} seconds"
+          end
+          raise Error, "#{File.basename(command.first)} output timed out after #{timeout} seconds" unless output.join(timeout) && errors.join(timeout)
+          [output.value, errors.value, process.value]
+        ensure
+          stdin.close unless stdin.closed?
+          [writer, output, errors].each { |thread| thread.kill if thread&.alive? }
+        end
       end
 
       def color(value)

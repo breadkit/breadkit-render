@@ -80,7 +80,10 @@ PNG and JPEG need a raster backend; SVG works without one.
   `power`, `ground`, `clock`, and `data` mark each connection. Resistors use
   four color bands by default; `bands: 5` selects five.
 - Occupied holes and connected holes have different markers. LED colors accept
-  CSS names and hexadecimal values such as `#6d5af0`.
+  CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
+  or connected hole in the SVG to see its hole ID and net.
+- `--state SW1` shows the selected switch as closed and uses that state's nets.
+  `--layer "2 I2C"` keeps one named layer in static SVG, PNG, or JPEG output.
 
 The demo was generated with:
 
@@ -103,11 +106,14 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--show-nets` / `--legend` | off | Add net labels or a circuit legend. |
 | `--crop MODE` | `auto` | Crop to circuit content or show the full board with `none`. |
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |
+| `--state NAME` | open switches | Render a switch state such as `SW1`; net colors and switch markers follow that state. |
+| `--layer NAME` | all layers | Render one named layer, including in PNG and JPEG output. |
 | `--backend NAME` | `auto` | Use `rsvg`, `vips`, or `magick` for raster output. |
 | `--background COLOR` | white | Set the JPEG background with a CSS name, `#RGB`, or `#RRGGBB`; PNG and SVG reject it. |
 | `--quality N` | `90` | JPEG quality. |
 | `--static` | off | Omit SVG layer controls and scripts. |
 | `--force` | off | Draw resolved elements even when input has layout errors. |
+| `--render-timeout SECONDS` | 60 | Limit external raster conversion time. |
 
 ## Raster backends
 
