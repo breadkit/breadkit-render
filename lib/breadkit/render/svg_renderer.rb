@@ -302,7 +302,8 @@ module Breadkit
           else generic_svg(component, pins, center_x, center_y)
           end
           opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
-          body = "<g data-ref=\"#{escape(component.ref)}\"#{opacity}>#{body}</g>"
+          switch = Array(component.part.data["switch"]).empty? ? "" : " data-switch=\"#{escape(component.ref)}\""
+          body = "<g data-ref=\"#{escape(component.ref)}\"#{switch}#{opacity}>#{body}</g>"
           layer_group(body, read(component.attrs, "layer"))
         end.compact.join
       end

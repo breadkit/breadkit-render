@@ -531,6 +531,20 @@ RSpec.describe Breadkit::Render::CLI do
     end
   end
 
+  it "includes selectable switch states in the standalone HTML viewer" do
+    Dir.mktmpdir do |directory|
+      input, output = File.join(directory, "switches.bk.rb"), File.join(directory, "switches.html")
+      File.write(input, 'board :half; button :SW1, at: "e10"; button :SW2, at: "e15"')
+      expect(described_class.new.run([input, "-o", output])).to eq(0)
+      html = File.read(output)
+      expect(html.scan(/data-viewer-state=/).length).to eq(4)
+      expect(html).to include('aria-label="Switch state"', 'data-switch="SW1"', 'data-switch="SW2"')
+      expect(html).to include('data-viewer-state="SW1,SW2"', 'data-state="SW1,SW2"')
+      expect(described_class.new.run([input, "--state", "SW1", "-o", output])).to eq(0)
+      expect(File.read(output)).to include('<option value="SW1" selected>SW1</option>', 'data-viewer-state="SW1" data-active')
+    end
+  end
+
   it "renders changed wires in a side-by-side diff viewer" do
     Dir.mktmpdir do |directory|
       before = File.join(directory, "before.bk.rb")

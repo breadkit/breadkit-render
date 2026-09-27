@@ -93,7 +93,8 @@ PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
 - `--focus R1` dims other components and unrelated wires.
   `--highlight-net VCC` emphasizes the selected net and its connected parts.
 - HTML output provides a standalone viewer with zoom, pan, layer controls, and
-  net highlighting on hover.
+  net highlighting on hover. Use the State menu or click a switch to see its
+  open and closed wiring states.
 - `--diff OLD NEW` creates a two-panel HTML viewer. Removed wires are red in
   the old view and added wires are green in the new view; matching wires use
   their normal colors.
