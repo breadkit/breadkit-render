@@ -232,6 +232,8 @@ across `--step` images. The breadboard and netlist views accept v2 JSON IR.
 - Occupied holes and connected holes have different markers. LED colors accept
   CSS names and hexadecimal values such as `#6d5af0`. Hover over an occupied
   or connected hole in the SVG to see its hole ID and net.
+- Custom part YAML can set `render.svg` to draw a body around the center of its
+  placed pins. The renderer keeps the physical leads and pins visible.
 - `--state SW1` shows the selected switch as closed and uses that state's nets.
   `--layer "2 I2C"` keeps one named layer in static SVG, PNG, JPEG, WebP, or PDF output.
 - `--focus R1` dims other components and unrelated wires.
@@ -292,6 +294,25 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--watch` | off | Keep rendering to `-o PATH` when nearby circuit or part files change. |
 | `--force` | off | Draw resolved elements even when input has layout errors. |
 | `--render-timeout SECONDS` | 60 | Limit external raster conversion time. |
+
+## Custom part bodies
+
+Add a small SVG fragment to a part definition. Its origin is the center of the
+placed pins, in the same drawing units as the built-in bodies:
+
+```yaml
+render:
+  shape: generic
+  fill: "#304050"
+  svg: '<circle cx="0" cy="0" r="5" fill="{{fill}}"/><text x="0" y="1" text-anchor="middle" fill="{{text_color}}">{{ref}}</text>'
+```
+
+The available variables are `{{ref}}`, `{{value}}`, `{{fill}}`, `{{stroke}}`, and
+`{{text_color}}`. Use basic SVG shapes, paths, groups, and text. Scripts, event
+handlers, URLs, styles, and external references are rejected. This keeps
+standalone diagrams safe to open as SVG or HTML.
+Part files using `render.svg` require a Breadkit core build that accepts that
+field; the current core main branch has the required schema support.
 
 ## Raster backends
 

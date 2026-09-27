@@ -360,7 +360,16 @@ module Breadkit
           shape = component.part.data.dig("render", "shape")
           shape = "to92" if shape == "generic" && %w[transistor 2n3904 2n3906 bc547 bc557].include?(component.part.id)
           shape = "potentiometer" if shape == "generic" && component.part.id == "pot"
-          body = case shape
+          template = component.part.data.dig("render", "svg")
+          body = if template
+            values = { "ref" => component.ref, "value" => component.value,
+                       "fill" => component.part.data.dig("render", "fill") || @colors[:component_bg],
+                       "stroke" => component.part.data.dig("render", "stroke") || @colors[:component_border],
+                       "text_color" => component.part.data.dig("render", "text_color") || @colors[:text] }
+            lead_lines(pins, center_x, center_y) +
+              %(<g data-part-template="#{escape(component.part.id)}" transform="translate(#{fmt(center_x)} #{fmt(center_y)})">#{SvgTemplate.new(template).render(values)}</g>)
+          else
+            case shape
           when "resistor" then resistor_svg(component, pins, center_x, center_y)
           when "led_5mm" then led_svg(component, pins, center_x, center_y)
           when "diode" then diode_svg(component, pins, center_x, center_y)
@@ -373,6 +382,7 @@ module Breadkit
           when "to92" then to92_svg(component, pins, center_x, center_y)
           when "potentiometer" then potentiometer_svg(component, pins, center_x, center_y)
           else generic_svg(component, pins, center_x, center_y)
+            end
           end
           opacity = @emphasis_active && !emphasized_component?(component.ref) ? " opacity=\"0.18\"" : ""
           switch = Array(component.part.data["switch"]).empty? ? "" : " data-switch=\"#{escape(component.ref)}\""
