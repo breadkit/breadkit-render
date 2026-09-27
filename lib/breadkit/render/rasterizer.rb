@@ -3,6 +3,8 @@
 module Breadkit
   module Render
     class Rasterizer
+      class TimeoutError < Error; end
+
       def rasterize(svg, format:, scale: 2.0, background: "white", quality: 90, backend: "auto", timeout: 60)
         format = format.to_s
         backend = backend.to_s
@@ -33,8 +35,8 @@ module Breadkit
           next unless supports?(name, format)
           begin
             return send(name, svg, format, scale, background, quality, timeout)
-          rescue Error
-            raise if backend != "auto"
+          rescue Error => e
+            raise if backend != "auto" || e.is_a?(TimeoutError)
           end
         end
         raise Error, "no conversion backend found for #{format}; install librsvg, ruby-vips, or ImageMagick"
@@ -106,9 +108,9 @@ module Breadkit
               nil
             end
             process.join
-            raise Error, "#{File.basename(command.first)} timed out after #{timeout} seconds"
+            raise TimeoutError, "#{File.basename(command.first)} timed out after #{timeout} seconds"
           end
-          raise Error, "#{File.basename(command.first)} output timed out after #{timeout} seconds" unless output.join(timeout) && errors.join(timeout)
+          raise TimeoutError, "#{File.basename(command.first)} output timed out after #{timeout} seconds" unless output.join(timeout) && errors.join(timeout)
           [output.value, errors.value, process.value]
         ensure
           stdin.close unless stdin.closed?

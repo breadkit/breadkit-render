@@ -625,7 +625,20 @@ RSpec.describe Breadkit::Render::CLI do
   it "stops external raster commands after the requested timeout" do
     rasterizer = Breadkit::Render::Rasterizer.new
     expect { rasterizer.send(:capture_command, RbConfig.ruby, "-e", "sleep 2", svg: "", timeout: 0.05) }
-      .to raise_error(Breadkit::Render::Error, /timed out/)
+      .to raise_error(Breadkit::Render::Rasterizer::TimeoutError, /timed out/)
+  end
+
+  it "reports an automatic backend timeout instead of claiming no backend exists" do
+    rasterizer = Breadkit::Render::Rasterizer.new
+    Dir.mktmpdir do |directory|
+      command = File.join(directory, "rsvg-convert")
+      File.write(command, "#!#{RbConfig.ruby}\nsleep 2\n")
+      File.chmod(0o755, command)
+      allow(rasterizer).to receive(:executable).with("rsvg-convert").and_return(command)
+
+      expect { rasterizer.rasterize("<svg/>", format: "pdf", timeout: 0.05) }
+        .to raise_error(Breadkit::Render::Rasterizer::TimeoutError, /rsvg-convert timed out after 0.05 seconds/)
+    end
   end
 
   it "parses white and hex JPEG backgrounds for libvips" do
