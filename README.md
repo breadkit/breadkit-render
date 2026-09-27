@@ -84,6 +84,8 @@ PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
 - Offboard modules use their own pin definitions. Pin `type:` values such as
   `power`, `ground`, `clock`, and `data` mark each connection. Resistors use
   four color bands by default; `bands: 5` selects five.
+- Footprint module bodies follow the DSL's `rotate:` and `mirror:` placement
+  options, including asymmetric body offsets and labeled pins.
 - The built-in `sc56_11ewa` seven-segment display and `wp154a4sureqbfzgc`
   RGB LED have dedicated diagram shapes.
 - Occupied holes and connected holes have different markers. LED colors accept

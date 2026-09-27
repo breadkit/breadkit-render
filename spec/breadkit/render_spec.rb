@@ -313,6 +313,73 @@ RSpec.describe Breadkit::Render::SvgRenderer do
     end
   end
 
+  it "rotates and mirrors an asymmetric module body with its footprint pins" do
+    builder = Breadkit::DSL::Builder.new
+    builder.document.part_definitions << {
+      "id" => "asymmetric_module", "placement" => "footprint",
+      "pins" => %w[GND DATA VCC].each_with_index.map { |name, index| { "num" => index + 1, "name" => name, "label" => true } },
+      "footprint" => { "1" => [0, 0], "2" => [1, 0], "3" => [0, 1] },
+      "render" => { "shape" => "module", "size_mm" => [30, 12], "body_offset_mm" => [5, 3] }
+    }
+    builder.instance_eval('board :mini; part :U1, :asymmetric_module, at: "c10", rotate: 90, mirror: true', "rotated.bk.rb", 1)
+    circuit = Breadkit::Resolver.new.call(builder.document)
+    expect(circuit.diagnostics).to be_empty
+    document = REXML::Document.new(described_class.new.render(circuit, orientation: "landscape"))
+    group = REXML::XPath.first(document, "//g[@id='components']/g[@data-ref='U1']")
+    body = group.elements["rect[@data-ref='U1']"]
+    pads = group.elements.to_a("circle").select { |circle| circle.attributes["data-pin"] }
+    pin_center_x = (pads.map { |pad| pad.attributes["cx"].to_f }.minmax.sum) / 2
+    pin_center_y = (pads.map { |pad| pad.attributes["cy"].to_f }.minmax.sum) / 2
+
+    expect(body.attributes["width"].to_f).to be_within(0.01).of(12 / 2.54 * 10)
+    expect(body.attributes["height"].to_f).to be_within(0.01).of(30 / 2.54 * 10)
+    expect(body.attributes["x"].to_f + body.attributes["width"].to_f / 2 - pin_center_x)
+      .to be_within(0.01).of(-3 / 2.54 * 10)
+    expect(body.attributes["y"].to_f + body.attributes["height"].to_f / 2 - pin_center_y)
+      .to be_within(0.01).of(5 / 2.54 * 10)
+    labels = group.elements.to_a("text").to_h { |label| [label.text, label] }
+    pad_by_name = pads.to_h { |pad| [pad.attributes["data-pin"].delete_prefix("U1."), pad] }
+    expect((labels.fetch("GND").attributes["y"].to_f - pad_by_name.fetch("GND").attributes["cy"].to_f).abs).to be > 3
+    expect((labels.fetch("VCC").attributes["y"].to_f - pad_by_name.fetch("VCC").attributes["cy"].to_f).abs).to be > 3
+    expect(labels.values_at("GND", "DATA", "VCC").map { |label| label.attributes["x"].to_f })
+      .to all(be_between(body.attributes["x"].to_f + 5, body.attributes["x"].to_f + body.attributes["width"].to_f - 5))
+    labels.values_at("GND", "DATA", "VCC").each do |label|
+      x, y, size = %w[x y font-size].map { |name| label.attributes[name].to_f }
+      half_width = label.text.length * size * 0.3
+      pads.each do |pad|
+        px, py = %w[cx cy].map { |name| pad.attributes[name].to_f }
+        expect(px.between?(x - half_width - 2.3, x + half_width + 2.3) && py.between?(y - size / 2 - 2.3, y + size / 2 + 2.3)).to be(false)
+      end
+    end
+  end
+
+  it "keeps rotated module labels apart in portrait output" do
+    builder = Breadkit::DSL::Builder.new
+    builder.document.part_definitions << {
+      "id" => "asymmetric_module", "placement" => "footprint",
+      "pins" => %w[GND DATA VCC].each_with_index.map { |name, index| { "num" => index + 1, "name" => name, "label" => true } },
+      "footprint" => { "1" => [0, 0], "2" => [1, 0], "3" => [0, 1] },
+      "render" => { "shape" => "module", "label" => "ROTATED", "size_mm" => [30, 12], "body_offset_mm" => [5, 3] }
+    }
+    builder.instance_eval('board :mini; part :U1, :asymmetric_module, at: "c10", rotate: 90, mirror: true', "rotated.bk.rb", 1)
+    circuit = Breadkit::Resolver.new.call(builder.document)
+    group = REXML::XPath.first(REXML::Document.new(described_class.new.render(circuit)), "//g[@id='components']/g[@data-ref='U1']")
+    boxes = group.elements.to_a("text").map do |label|
+      x, y, size = %w[x y font-size].map { |name| label.attributes[name].to_f }
+      length = label.text.length * size * 0.6
+      [x - size / 2, y - length / 2, x + size / 2, y + length / 2]
+    end
+    boxes.combination(2).each do |first, second|
+      expect(first[2] <= second[0] || second[2] <= first[0] || first[3] <= second[1] || second[3] <= first[1]).to be(true)
+    end
+    group.elements.to_a("circle").select { |pad| pad.attributes["data-pin"] }.each do |pad|
+      px, py = %w[cx cy].map { |name| pad.attributes[name].to_f }
+      boxes.each do |left, top, right, bottom|
+        expect(px.between?(left - 2.3, right + 2.3) && py.between?(top - 2.3, bottom + 2.3)).to be(false)
+      end
+    end
+  end
+
   it "keeps compact module labels clear of their pin pads" do
     input = File.expand_path("../../../breadkit/examples/05_sensor_demo.bk.rb", __dir__)
     circuit = Breadkit.load(input)

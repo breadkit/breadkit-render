@@ -375,6 +375,9 @@ module Breadkit
                     stroke: render["stroke"] || @colors[:module_border], stroke_width: 1,
                     data_ref: component.ref)]
         pin_definitions = component.part.data["pins"].to_h { |definition| [definition["num"].to_s, definition] }
+        pad_points = pins.map { |_pin, hole| display_hole(hole).then { |display| [px(display.x), py(display.y)] } }
+        rotated_footprint = [90, 270].include?(component.attrs[:rotate])
+        portrait_labels, landscape_labels = [], []
         pins.each do |pin, hole|
           display = display_hole(hole)
           pin_x, pin_y = px(display.x), py(display.y)
@@ -387,10 +390,33 @@ module Breadkit
           label = definition && definition["label"]
           next unless label
           label = pin.name if label == true
-          label_gap = @orientation == "portrait" ? 10 : 3.8
-          label_y = pin_y + (center_y > pin_y ? label_gap : -label_gap)
-          label_anchor = @orientation == "portrait" ? (center_y > pin_y ? "end" : "start") : "middle"
-          out << text(pin_x, label_y, label, "font-size" => 5.8, "font-weight" => 500,
+          length = label.to_s.length * 5.8 * 0.6
+          if @orientation == "landscape" && rotated_footprint
+            label_x = pin_x
+            label_y = [pin_y - 9, pin_y + 9, pin_y - 18, pin_y + 18].find do |candidate|
+              candidate.between?(y + 4, y + height - 4) &&
+                landscape_labels.none? { |other_x, other_y, other_length| (label_x - other_x).abs < (length + other_length) / 2 &&
+                  (candidate - other_y).abs < 5.8 } &&
+                pad_points.none? { |pad_x, pad_y| (label_x - pad_x).abs < length / 2 + 3.3 && (candidate - pad_y).abs < 6.2 }
+            end || pin_y
+            landscape_labels << [label_x, label_y, length]
+            label_anchor = "middle"
+          elsif @orientation == "portrait" && rotated_footprint
+            label_y = pin_y - length / 2 - 9
+            label_x = [pin_x, pin_x - 9, pin_x + 9, pin_x - 18, pin_x + 18].find do |candidate|
+              candidate.between?(x + 3, x + width - 3) &&
+                portrait_labels.none? { |other_x, other_y, other_length| (candidate - other_x).abs < 5.8 &&
+                  (label_y - other_y).abs < (length + other_length) / 2 } &&
+                pad_points.none? { |pad_x, pad_y| (candidate - pad_x).abs < 6.2 && (label_y - pad_y).abs < length / 2 + 3.3 }
+            end || pin_x
+            portrait_labels << [label_x, label_y, length]
+            label_anchor = "middle"
+          else
+            label_gap = @orientation == "portrait" ? 10 : 3.8
+            label_x, label_y = pin_x, pin_y + (center_y > pin_y ? label_gap : -label_gap)
+            label_anchor = @orientation == "portrait" ? (center_y > pin_y ? "end" : "start") : "middle"
+          end
+          out << text(label_x, label_y, label, "font-size" => 5.8, "font-weight" => 500,
                       "fill" => render["text_color"] || @colors[:text], "text-anchor" => label_anchor)
         end
         label = render["label"] || component.ref
@@ -412,6 +438,8 @@ module Breadkit
       end
 
       def module_bounds(component, pins)
+        return component.body_bounds(@circuit.board) if component.respond_to?(:body_bounds)
+
         xs, ys = pins.map { |_pin, hole| hole.x }, pins.map { |_pin, hole| hole.y }
         render = component.part.data.fetch("render")
         width_mm, height_mm = render.fetch("size_mm").map { |value| Float(value) }
