@@ -591,6 +591,18 @@ RSpec.describe Breadkit::Render::CLI do
     skip e.message
   end
 
+  it "writes a full-board PDF with physical hole spacing for printing" do
+    input = File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)
+    Dir.mktmpdir do |directory|
+      pdf = File.join(directory, "board.pdf")
+      expect(described_class.new.run([input, "--print-template", "-o", pdf])).to eq(0)
+      expect(File.binread(pdf)).to start_with("%PDF-".b)
+      expect(described_class.new.run([input, "--print-template", "-o", File.join(directory, "board.png")])).to eq(2)
+    end
+    expect(described_class.new.send(:print_dimensions, '<svg width="100.00" height="200.00" viewBox="0 0 100 200">'))
+      .to include('width="25.40mm" height="50.80mm"')
+  end
+
   it "rasterizes to PNG and JPEG when optional system backends are installed" do
     svg = Breadkit::Render::SvgRenderer.new.render(Breadkit.load(File.expand_path("../../../breadkit/examples/01_led_button.bk.rb", __dir__)))
     rasterizer = Breadkit::Render::Rasterizer.new

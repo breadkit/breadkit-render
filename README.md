@@ -64,6 +64,7 @@ bkrender circuit.bk.rb -o circuit.svg --theme dark --show-nets --legend
 bkrender circuit.bk.rb -o circuit.png --scale 3
 bkrender circuit.bk.rb -o circuit.webp --quality 85
 bkrender circuit.bk.rb -o circuit.pdf
+bkrender circuit.bk.rb --print-template -o board-template.pdf
 bkrender circuit.bk.rb -o circuit.html --theme dark
 bkrender --diff before.bk.rb after.bk.rb -o changes.html
 bkrender circuit.bk.rb --format svg > circuit.svg
@@ -98,6 +99,9 @@ PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
 - `--diff OLD NEW` creates a two-panel HTML viewer. Removed wires are red in
   the old view and added wires are green in the new view; matching wires use
   their normal colors.
+- `--print-template` makes a PDF with 2.54 mm hole spacing, the complete board,
+  and the print palette. Print at 100% scale; the option fixes the output scale
+  to 1 and requires `rsvg-convert`.
 
 The demo was generated with:
 
@@ -128,6 +132,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--backend NAME` | `auto` | Use `rsvg`, `vips`, or `magick` for raster output. |
 | `--background COLOR` | white | Set the JPEG background with a CSS name, `#RGB`, or `#RRGGBB`; PNG and SVG reject it. |
 | `--quality N` | `90` | JPEG and WebP quality. |
+| `--print-template` | off | Export a full-board PDF with physical hole spacing for 100% printing. |
 | `--static` | off | Omit SVG layer controls and scripts. |
 | `--force` | off | Draw resolved elements even when input has layout errors. |
 | `--render-timeout SECONDS` | 60 | Limit external raster conversion time. |

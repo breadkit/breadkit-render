@@ -30,6 +30,7 @@ module Breadkit
           opts.on("--background COLOR") { |value| options[:background] = value }
           opts.on("--static") { options[:static] = true }
           opts.on("--quality N", Integer) { |value| options[:quality] = value }
+          opts.on("--print-template") { options[:print_template] = true }
           opts.on("--render-timeout SECONDS", Float) { |value| options[:render_timeout] = value }
           opts.on("--force") { options[:force] = true }
           opts.on("-v", "--version") { puts "bkrender #{VERSION}"; return 0 }
@@ -42,6 +43,10 @@ module Breadkit
         raise ArgumentError, "--diff requires OLD and NEW inputs" if options[:diff] && !second_input
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
+        if options[:print_template]
+          raise ArgumentError, "--print-template requires PDF output" unless format == "pdf"
+          options.merge!(theme: "print", crop: "none", scale: 1.0, static: true)
+        end
         raise ArgumentError, "--background is only supported for JPEG" if options[:background] && format != "jpeg"
         raise ArgumentError, "cannot write binary image data to a terminal; use -o PATH" if !%w[svg html].include?(format) && !options[:output] && $stdout.tty?
         return render_diff(input, second_input, options, format) if options[:diff]
@@ -61,6 +66,7 @@ module Breadkit
                            state: state, active_layer: options[:layer], focus: options[:focus],
                            highlight_net: options[:highlight_net] }
         svg = SvgRenderer.new.render(circuit, **render_options)
+        svg = print_dimensions(svg) if options[:print_template]
         output = case format
         when "svg" then svg
         when "html" then html_viewer(svg, theme: options[:theme], circuit: circuit, render_options: render_options)
@@ -80,6 +86,12 @@ module Breadkit
       end
 
       private
+
+      def print_dimensions(svg)
+        svg.sub(/(<svg\b[^>]*?\bwidth=")([\d.]+)(" height=")([\d.]+)(")/) do
+          "#{$1}#{format('%.2f', $2.to_f * 0.254)}mm#{$3}#{format('%.2f', $4.to_f * 0.254)}mm#{$5}"
+        end
+      end
 
       def output_format(options)
         extension = File.extname(options[:output].to_s).downcase
