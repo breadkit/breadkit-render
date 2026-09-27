@@ -1009,8 +1009,10 @@ module Breadkit
             state_name = read(item, "state")
             state = @state
             if state_name
-              @annotation_states ||= @circuit.states("all").to_h { |candidate| [candidate.name, candidate] }
-              state = @annotation_states[state_name]
+              @annotation_states ||= {}
+              state = @annotation_states.fetch(state_name) do
+                @annotation_states[state_name] = StateSelection.resolve(@circuit, state_name)
+              end
               next unless state
             end
             net = @circuit.nets(state).find { |candidate| candidate.name == name }

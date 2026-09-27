@@ -88,7 +88,7 @@ module Breadkit
         all_steps = circuit.respond_to?(:steps) ? circuit.steps : []
         step = select_step(all_steps, options[:step]) if options[:step]
         circuit = circuit_for_step(circuit, options[:step]) if step
-        state = circuit.states("all").find { |candidate| candidate.name == options[:state] } if options[:state]
+        state = StateSelection.resolve(circuit, options[:state]) if options[:state]
         raise ArgumentError, "unknown circuit state: #{options[:state]}" if options[:state] && !state
         render_options = if %w[netlist schematic].include?(options[:view])
           { theme: options[:theme], state: state }
@@ -367,7 +367,7 @@ module Breadkit
       def html_viewer(svg, theme:, circuit: nil, render_options: nil)
         background = theme == "dark" ? "#151d19" : "#f1f4f1"
         foreground = theme == "dark" ? "#ecf3ee" : "#203029"
-        states = circuit&.states("all") || []
+        states = circuit&.states("all", budget: 256) || []
         selected = render_options&.dig(:state)&.name.to_s
         diagram = viewer_diagrams(svg, states, selected) { |state| SvgRenderer.new.render(circuit, **render_options.merge(state: state)) }
         schematic = if circuit
