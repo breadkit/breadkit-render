@@ -26,6 +26,10 @@ module Breadkit
       def render: (Breadkit::Circuit circuit, ?theme: String, ?state: Breadkit::State?) -> String
     end
 
+    class SchematicRenderer
+      def render: (Breadkit::Circuit circuit, ?theme: String, ?state: Breadkit::State?) -> String
+    end
+
     class Rasterizer
       def rasterize: (
         String svg,
