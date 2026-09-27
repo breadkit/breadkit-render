@@ -23,6 +23,7 @@ module Breadkit
           opts.on("--crop MODE", %w[auto none]) { |value| options[:crop] = value }
           opts.on("--annotations FILE") { |value| options[:annotations] = value }
           opts.on("--state NAME") { |value| options[:state] = value }
+          opts.on("--step N", Integer) { |value| options[:step] = value }
           opts.on("--layer NAME") { |value| options[:layer] = value }
           opts.on("--focus REF") { |value| options[:focus] = value }
           opts.on("--highlight-net NAME") { |value| options[:highlight_net] = value }
@@ -45,6 +46,7 @@ module Breadkit
         raise ArgumentError, "unexpected arguments: #{argv.join(' ')}" unless argv.empty?
         format = output_format(options)
         validate_netlist_options(options, format) if options[:view] == "netlist"
+        validate_step_options(options, format) if options[:step]
         if options[:print_template]
           raise ArgumentError, "--print-template requires PDF output" unless format == "pdf"
           options.merge!(theme: "print", crop: "none", scale: 1.0, static: true)
@@ -59,19 +61,23 @@ module Breadkit
         end
         errors = circuit.diagnostics.reject { |item| %w[warning info].include?(item.severity) }
         return 1 if !errors.empty? && !options[:force]
+        all_steps = circuit.respond_to?(:steps) ? circuit.steps : []
+        step = select_step(all_steps, options[:step]) if options[:step]
+        circuit = circuit_for_step(circuit, options[:step]) if step
         state = circuit.states("all").find { |candidate| candidate.name == options[:state] } if options[:state]
         raise ArgumentError, "unknown circuit state: #{options[:state]}" if options[:state] && !state
         render_options = if options[:view] == "netlist"
           { theme: options[:theme], state: state }
         else
-          { crop: options[:crop], theme: options[:theme], orientation: options[:orientation],
+          { crop: step ? "none" : options[:crop], theme: options[:theme], orientation: options[:orientation],
             show_nets: options[:show_nets], legend: options[:legend], color_by: options[:color_by],
             annotations: read_annotations(options[:annotations], input), rail_pattern: options[:rail_pattern],
-            interactive_layers: %w[svg html].include?(format) && !options[:static] && !options[:layer],
+            interactive_layers: !step && %w[svg html].include?(format) && !options[:static] && !options[:layer],
             state: state, active_layer: options[:layer], focus: options[:focus],
             highlight_net: options[:highlight_net] }
         end
         svg = (options[:view] == "netlist" ? NetlistRenderer.new : SvgRenderer.new).render(circuit, **render_options)
+        svg = add_step_banner(svg, options[:step], step, all_steps, options[:theme]) if step
         svg = print_dimensions(svg) if options[:print_template]
         output = case format
         when "svg" then svg
@@ -92,6 +98,71 @@ module Breadkit
       end
 
       private
+
+      def validate_step_options(options, format)
+        raise ArgumentError, "--step must be a positive integer" unless options[:step].positive?
+        raise ArgumentError, "--step is unavailable in netlist view" if options[:view] == "netlist"
+        raise ArgumentError, "--step requires SVG or image output" if format == "html"
+        raise ArgumentError, "--step is unavailable with --diff" if options[:diff]
+        raise ArgumentError, "--step is unavailable with --print-template" if options[:print_template]
+        raise ArgumentError, "--step is unavailable with --annotations" if options[:annotations]
+      end
+
+      def select_step(steps, number)
+        raise ArgumentError, "circuit has no assembly steps" if steps.empty?
+
+        steps[number - 1] || raise(ArgumentError, "unknown assembly step: #{number}")
+      end
+
+      def circuit_for_step(circuit, number)
+        visible = ->(item) { !item.step || item.step <= number }
+        components = circuit.components.select { |_ref, component| visible.call(component) }
+        wires = circuit.wires.select(&visible)
+        supplies = circuit.supplies.select(&visible)
+        labels = circuit.labels.select(&visible)
+        future_refs = (circuit.components.keys - components.keys) + (circuit.supplies.map(&:name) - supplies.map(&:name))
+        (wires.flat_map { |wire| [wire.from, wire.to] } + labels.map(&:at)).each do |endpoint|
+          ref = endpoint.split(".", 2).first if endpoint.include?(".")
+          raise ArgumentError, "step #{number} references #{endpoint} before #{ref} is placed" if future_refs.include?(ref)
+        end
+        Breadkit::Circuit.new(title: circuit.title, board: circuit.board, components: components, wires: wires,
+                              supplies: supplies, labels: labels, expectations: [], lint_disables: [], diagnostics: [],
+                              steps: circuit.steps.take(number), source_root: circuit.source_root)
+      end
+
+      def add_step_banner(svg, number, step, all_steps, theme)
+        inner = svg.sub(/\A<\?xml[^>]*\?>\s*/, "")
+        match = inner.match(/\A<svg\b[^>]*\bwidth="([\d.]+)" height="([\d.]+)"/)
+        raise Error, "cannot add an assembly step title to this SVG" unless match
+
+        width, height = match.captures.map(&:to_f)
+        max_chars = [(width - 24).div(7), 12].max
+        titles = all_steps.map { |item| wrap_step_title(item[:title] || "Assembly step", max_chars) }
+        banner_height = 50 + titles.map(&:length).max * 18
+        heading = "Step #{number} of #{all_steps.length}: #{step[:title] || 'Assembly step'}"
+        background, foreground = theme == "dark" ? %w[#0d1420 #f2f6fc] : %w[#f4f7fb #172338]
+        inner = inner.sub("<svg ", %(<svg id="step-board" x="0" y="#{banner_height}" ))
+        title_lines = [%(<text x="20" y="27" fill="#{foreground}" font-size="15" font-weight="700">Step #{number} of #{all_steps.length}</text>)]
+        titles[number - 1].each_with_index do |line, index|
+          title_lines << %(<text x="20" y="#{52 + index * 18}" fill="#{foreground}" font-size="12">#{CGI.escapeHTML(line)}</text>)
+        end
+        %(<?xml version="1.0" encoding="UTF-8"?>\n) +
+          %(<svg xmlns="http://www.w3.org/2000/svg" width="#{format('%.2f', width)}" height="#{format('%.2f', height + banner_height)}" viewBox="0 0 #{format('%.2f', width)} #{format('%.2f', height + banner_height)}" role="img" aria-label="#{CGI.escapeHTML(heading)}" data-step="#{number}">\n) +
+          %(<title>#{CGI.escapeHTML(heading)}</title><rect width="#{format('%.2f', width)}" height="#{banner_height}" fill="#{background}"/>\n) +
+          %(<g id="assembly-step-title" font-family="Helvetica, Arial, sans-serif">#{title_lines.join}</g>\n) +
+          %(#{inner}\n</svg>)
+      end
+
+      def wrap_step_title(title, max_chars)
+        words = title.split.flat_map { |word| word.scan(/.{1,#{max_chars}}/) }
+        words.each_with_object([""]) do |word, lines|
+          if lines.last.empty? || lines.last.length + word.length + 1 <= max_chars
+            lines[-1] = [lines.last, word].reject(&:empty?).join(" ")
+          else
+            lines << word
+          end
+        end
+      end
 
       def validate_netlist_options(options, format)
         raise ArgumentError, "HTML is unavailable in netlist view" if format == "html"

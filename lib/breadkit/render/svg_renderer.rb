@@ -57,6 +57,10 @@ module Breadkit
       }.freeze
 
       def render(circuit, crop: "auto", theme: "light", orientation: "portrait", show_nets: false, legend: false, color_by: "wire", annotations: [], rail_pattern: nil, interactive_layers: true, state: nil, active_layer: nil, focus: nil, highlight_net: nil, diff_wires: {})
+        if circuit.respond_to?(:multi_board?) && circuit.multi_board?
+          raise ArgumentError, "multi-board breadboard rendering is not yet supported"
+        end
+
         @circuit, @theme, @orientation, @show_nets, @legend_enabled, @color_by, @annotations = circuit, theme.to_s, orientation.to_s, show_nets, legend, color_by, annotations
         @state, @active_layer = state, active_layer&.to_s
         @diff_wires = diff_wires

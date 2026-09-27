@@ -79,6 +79,7 @@ PNG, JPEG, WebP, and PDF need a conversion backend; SVG works without one.
 and supply terminal appears under the net it actually connects to. The layout
 stays readable for large circuits by keeping each net in its own row; it does
 not attempt conventional electronic symbols or show the physical wire route.
+The netlist view also accepts named multi-board circuits and v2 JSON IR.
 
 <p align="center">
   <img src="docs/images/led-netlist.png" width="700" alt="Dark netlist view of a switch, resistor, LED, and USB supply grouped by four connected nets">
@@ -87,6 +88,32 @@ not attempt conventional electronic symbols or show the physical wire route.
 Use `--state SW1` to render the switch's closed-state connectivity. Netlist
 view supports SVG, PNG, JPEG, WebP, and PDF. HTML, diff, and breadboard-only
 controls such as `--layer`, `--rail-pattern`, and `--focus` are unavailable.
+
+## Assembly steps
+
+Add numbered `step` blocks in the Breadkit DSL, then use `--step N` to show the
+board after that step. Declarations outside step blocks appear in every image.
+
+```ruby
+board :half
+step 1, title: "Place the resistor" do
+  resistor :R1, "330", pins: %w[a12 a16]
+end
+step 2, title: "Add the LED" do
+  led :D1, anode: "b16", cathode: "b17"
+end
+```
+
+```sh
+bkrender circuit.bk.rb --step 1 --theme dark -o step-1.svg
+bkrender circuit.bk.rb --step 2 --theme dark -o step-2.svg
+```
+
+Each stage uses the full board dimensions and recalculates its nets from the
+visible components and wires. The step title appears above the board. `--step`
+works with breadboard SVG and image output; HTML, netlist view, diff,
+print templates, and annotations are unavailable. A wire to a later board-mounted
+component pin stays at that pin's physical hole until the component is placed.
 
 ## Diagram controls
 
@@ -144,6 +171,7 @@ bkrender ../breadkit/examples/05_sensor_demo.bk.rb \
 | `--crop MODE` | `auto` | Crop to circuit content or show the full board with `none`. |
 | `--annotations FILE` | none | Overlay offenses from `bklint --format json`. |
 | `--state NAME` | open switches | Render a switch state such as `SW1`; net colors and switch markers follow that state. |
+| `--step N` | all steps | Render the board after assembly step `N`, with a fixed full-board frame and a visible step title. |
 | `--layer NAME` | all layers | Render one named layer, including in image and PDF output. |
 | `--focus REF` | none | Emphasize one component and its connected wires. |
 | `--highlight-net NAME` | none | Emphasize one net and its connected components. |
