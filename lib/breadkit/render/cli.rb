@@ -2,6 +2,7 @@
 
 require "optparse"
 require "cgi/escape"
+require "find"
 
 module Breadkit
   module Render
@@ -132,7 +133,14 @@ module Breadkit
 
       def watch_snapshot(root, paths, output)
         # ponytail: watch nearby circuit and part files; add dependency tracking if broad projects make scanning costly.
-        files = paths + Dir.glob(File.join(root, "**", "*.{bk.rb,yml,yaml,toml,json}"))
+        files = paths.dup
+        Find.find(root) do |path|
+          if File.directory?(path)
+            Find.prune if path != root && (File.basename(path).start_with?(".") || File.basename(path) == "node_modules")
+          elsif path.end_with?(".bk.rb", ".yml", ".yaml", ".toml", ".json")
+            files << path
+          end
+        end
         files.map { |path| File.expand_path(path) }.uniq.sort.reject { |path| path == File.expand_path(output) }.to_h do |path|
           stat = File.stat(path)
           [path, [stat.mtime.to_r, stat.size]]

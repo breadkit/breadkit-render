@@ -613,6 +613,9 @@ RSpec.describe Breadkit::Render::CLI do
       expect(after).not_to eq(before)
       File.write(output, "generated")
       expect(cli.send(:watch_snapshot, directory, [input], output)).to eq(after)
+      Dir.mkdir(File.join(directory, "node_modules"))
+      File.write(File.join(directory, "node_modules", "package.json"), "{}")
+      expect(cli.send(:watch_snapshot, directory, [input], output)).to eq(after)
     end
   end
 
